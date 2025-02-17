@@ -1,0 +1,9 @@
+on: push
+
+jobs:
+  clang-format:
+    runs-on: ubuntu-latest
+    container: ghcr.io/cpp-linter/clang-tools:18
+    steps:
+      - uses: actions/checkout@v4
+      - run: clang-format --dry-run -Werror *.cpp
