@@ -2,7 +2,6 @@
 #define VIDEOPLAYER_HPP
 
 #include <atomic>
-#include <iostream>
 #include <mutex>
 #include <string>
 #include <thread>

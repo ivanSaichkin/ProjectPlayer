@@ -54,13 +54,11 @@ bool VideoPlayer::load(const std::string& filename) {
     this->filePath = filePath;
 
     if (avformat_open_input(&formatContext, filePath.c_str(), nullptr, nullptr) != 0) {
-        std::cerr << "Couldn't open video file" << std::endl;
-        return false;
+        throw std::runtime_error("Couldn't open");
     }
 
     if (avformat_find_stream_info(formatContext, nullptr) < 0) {
-        std::cerr << "Couldn't find stream information" << std::endl;
-        return false;
+        throw std::runtime_error("Couldn't find stream info");
     }
 
     videoStreamIndex = -1;
@@ -75,23 +73,20 @@ bool VideoPlayer::load(const std::string& filename) {
     }
 
     if (videoStreamIndex == -1) {
-        std::cerr << "Couldn't find a video stream" << std::endl;
-        return false;
+        throw std::runtime_error("Couldn't find a video stream");
     }
 
     videoCodecParameters = formatContext->streams[videoStreamIndex]->codecpar;
     videoCodec = avcodec_find_decoder(videoCodecParameters->codec_id);
     if (!videoCodec) {
-        std::cerr << "Unsupported video codec" << std::endl;
-        return false;
+        throw std::runtime_error("Unsupported video codec");
     }
 
     videoCodecContext = avcodec_alloc_context3(videoCodec);
     avcodec_parameters_to_context(videoCodecContext, videoCodecParameters);
 
     if (avcodec_open2(videoCodecContext, videoCodec, nullptr) < 0) {
-        std::cerr << "Failed to open video codec" << std::endl;
-        return false;
+        throw std::runtime_error("Failed to open video codec");
     }
 
     videoFrame = av_frame_alloc();
@@ -106,16 +101,14 @@ bool VideoPlayer::load(const std::string& filename) {
         audioCodecParameters = formatContext->streams[audioStreamIndex]->codecpar;
         audioCodec = avcodec_find_decoder(audioCodecParameters->codec_id);
         if (!audioCodec) {
-            std::cerr << "Unsupported audio codec" << std::endl;
-            return false;
+            throw std::runtime_error("Unsupported audio codec");
         }
 
         audioCodecContext = avcodec_alloc_context3(audioCodec);
         avcodec_parameters_to_context(audioCodecContext, audioCodecParameters);
 
         if (avcodec_open2(audioCodecContext, audioCodec, nullptr) < 0) {
-            std::cerr << "Failed to open audio codec" << std::endl;
-            return false;
+            throw std::runtime_error("Failed to open audio codec");
         }
 
         soundBuffer.loadFromSamples(nullptr, 0, audioCodecContext->sample_rate, audioCodecContext->channels);
