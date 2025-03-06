@@ -51,7 +51,7 @@ VideoPlayer::~VideoPlayer() {
 }
 
 bool VideoPlayer::load(const std::string& filename) {
-    this->filePath = filePath;
+    this->filePath = filename;
 
     if (avformat_open_input(&formatContext, filePath.c_str(), nullptr, nullptr) != 0) {
         throw std::runtime_error("Couldn't open");
@@ -66,7 +66,7 @@ bool VideoPlayer::load(const std::string& filename) {
 
     for (size_t i = 0; i < formatContext->nb_streams; ++i) {
         if (formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-            videoStreamIndex = 1;
+            videoStreamIndex = i;
         } else if (formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
             audioStreamIndex = i;
         }
@@ -133,6 +133,10 @@ void VideoPlayer::stop() {
     sound.stop();
 }
 
+void VideoPlayer::pause() {
+    isPaused = !isPaused;
+}
+
 void VideoPlayer::setVolume(float volume) {
     this->volume = volume;
     sound.setVolume(volume);
@@ -188,6 +192,11 @@ const std::vector<std::string>& VideoPlayer::getFileList() const {
 
 void VideoPlayer::decodeVideo() {
     while (isPlaying) {
+        if (isPaused) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+
         if (av_read_frame(formatContext, packet) >= 0) {
             if (packet->stream_index == videoStreamIndex) {
                 if (avcodec_send_packet(videoCodecContext, packet) == 0) {
@@ -217,6 +226,11 @@ void VideoPlayer::decodeVideo() {
 
 void VideoPlayer::decodeAudio() {
     while (isPlaying) {
+        if (isPaused) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+
         if (av_read_frame(formatContext, packet) >= 0) {
             if (packet->stream_index == audioStreamIndex) {
                 if (avcodec_send_packet(audioCodecContext, packet) == 0) {

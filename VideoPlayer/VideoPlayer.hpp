@@ -23,6 +23,7 @@ class VideoPlayer {
 
     void play();
     void stop();
+    void pause();
     void setVolume(float volume);
     void seek(int frame);
     int getCurrentFrame() const;
@@ -60,6 +61,7 @@ class VideoPlayer {
 
     float volume;
     std::atomic<bool> isPlaying;
+    std::atomic<bool> isPaused;
     std::atomic<int> currentFrame;
     std::mutex mutex;
 
