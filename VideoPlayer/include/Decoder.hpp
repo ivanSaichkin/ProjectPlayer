@@ -16,9 +16,11 @@ public:
 
     virtual void Start() = 0;
     virtual void Stop() = 0;
+    virtual void TogglePause() = 0;
 
 protected:
     std::atomic<bool> isRunning_;
+    std::atomic<bool> isPaused_;
     std::mutex mutex_;
 };
 

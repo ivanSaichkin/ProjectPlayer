@@ -8,9 +8,11 @@
 class VideoDecoder : public Decoder {
  public:
     VideoDecoder(const MediaFile& mediaFile);
+    ~VideoDecoder();
     void Start() override;
     void Stop() override;
     void Draw(sf::RenderWindow& window);
+    void TogglePause() override;
 
  private:
     void DecodeVideo();

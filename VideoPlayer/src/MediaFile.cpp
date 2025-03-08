@@ -19,9 +19,6 @@ bool MediaFile::Load(const std::string& filename) {
         throw std::runtime_error("Couldn't find stream info");
     }
 
-    videoStreamIndex_ = -1;
-    audioStreamIndex_ = -1;
-
     for (size_t i = 0; i < formatContext_->nb_streams; ++i) {
         if (formatContext_->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
             videoStreamIndex_ = i;

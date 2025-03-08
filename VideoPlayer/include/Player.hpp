@@ -10,8 +10,11 @@ class Player {
     Player();
     void Load(const std::string& filename);
     void Play();
+    void TogglePause();
     void Stop();
     void Draw(sf::RenderWindow& window);
+    void Seek(int seconds);
+    void SetVolume(float volume);
 
  private:
     MediaFile mediaFile_;
