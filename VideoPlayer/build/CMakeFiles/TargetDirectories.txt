@@ -1,0 +1,3 @@
+/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/build/CMakeFiles/ButtonExample.dir
+/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/build/CMakeFiles/edit_cache.dir
+/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/build/CMakeFiles/rebuild_cache.dir
