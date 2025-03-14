@@ -1,12 +1,13 @@
 #ifndef MEDIAFILE_HPP
 #define MEDIAFILE_HPP
 
-#include <string>
 #include <stdexcept>
+#include <string>
+
 #include "libavformat/avformat.h"
 
 class MediaFile {
-public:
+ public:
     MediaFile();
     ~MediaFile();
     bool Load(const std::string& filename);
@@ -15,7 +16,10 @@ public:
     int GetAudioStreamIndex() const;
     AVFormatContext* GetFormatContext() const;
 
-private:
+    double GetVideoTimeBase() const;
+    double GetAudioTimeBase() const;
+
+ private:
     std::string filePath_;
     AVFormatContext* formatContext_;
     int videoStreamIndex_;

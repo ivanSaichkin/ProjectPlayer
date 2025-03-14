@@ -13,6 +13,8 @@ class AudioDecoder : public Decoder {
     void Stop() override;
     void SetVolume(float volume);
     void TogglePause() override;
+    void Flush() override;
+    void SetStartTime(std::chrono::steady_clock::time_point startTime) override;
 
  private:
     void DecodeAudio();

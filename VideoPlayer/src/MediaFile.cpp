@@ -1,6 +1,7 @@
 #include "../include/MediaFile.hpp"
 
-MediaFile::MediaFile() : formatContext_(nullptr), videoStreamIndex_(-1), audioStreamIndex_(-1) {}
+MediaFile::MediaFile() : formatContext_(nullptr), videoStreamIndex_(-1), audioStreamIndex_(-1) {
+}
 
 MediaFile::~MediaFile() {
     if (formatContext_) {
@@ -48,4 +49,12 @@ int MediaFile::GetAudioStreamIndex() const {
 
 AVFormatContext* MediaFile::GetFormatContext() const {
     return formatContext_;
+}
+
+double MediaFile::GetVideoTimeBase() const {
+    return av_q2d(formatContext_->streams[videoStreamIndex_]->time_base);
+}
+
+double MediaFile::GetAudioTimeBase() const {
+    return av_q2d(formatContext_->streams[audioStreamIndex_]->time_base);
 }

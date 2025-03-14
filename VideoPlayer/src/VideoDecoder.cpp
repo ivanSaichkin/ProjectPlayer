@@ -1,15 +1,14 @@
 #include "../include/VideoDecoder.hpp"
 
-VideoDecoder::VideoDecoder(const MediaFile& mediaFile)
-    : mediaFile_(mediaFile), videoCodecContext_(nullptr), swsContext_(nullptr){
-
+VideoDecoder::VideoDecoder(const MediaFile& mediaFile) : mediaFile_(mediaFile), videoCodecContext_(nullptr), swsContext_(nullptr) {
     isPaused_ = false;
     isRunning_ = false;
 
     AVCodecParameters* codecParams = mediaFile_.GetFormatContext()->streams[mediaFile_.GetVideoStreamIndex()]->codecpar;
     const AVCodec* codec = avcodec_find_decoder(codecParams->codec_id);
 
-    if (!codec) throw std::runtime_error("Unsupported video codec");
+    if (!codec)
+        throw std::runtime_error("Unsupported video codec");
 
     videoCodecContext_ = avcodec_alloc_context3(codec);
     avcodec_parameters_to_context(videoCodecContext_, codecParams);
@@ -17,9 +16,8 @@ VideoDecoder::VideoDecoder(const MediaFile& mediaFile)
     if (avcodec_open2(videoCodecContext_, codec, nullptr) < 0)
         throw std::runtime_error("Failed to open video codec");
 
-    swsContext_ = sws_getContext(videoCodecContext_->width, videoCodecContext_->height, videoCodecContext_->pix_fmt,
-        videoCodecContext_->width, videoCodecContext_->height, AV_PIX_FMT_RGB32,
-                                  SWS_BILINEAR, nullptr, nullptr, nullptr);
+    swsContext_ = sws_getContext(videoCodecContext_->width, videoCodecContext_->height, videoCodecContext_->pix_fmt, videoCodecContext_->width,
+                                 videoCodecContext_->height, AV_PIX_FMT_RGB32, SWS_BILINEAR, nullptr, nullptr, nullptr);
 
     texture_.create(videoCodecContext_->width, videoCodecContext_->height);
 }
@@ -51,13 +49,16 @@ void VideoDecoder::Draw(sf::RenderWindow& window) {
 }
 
 void VideoDecoder::TogglePause() {
-    isRunning_ =!isRunning_;
+    isRunning_ = !isRunning_;
 }
 
 void VideoDecoder::DecodeVideo() {
     AVPacket* packet = av_packet_alloc();
-    if (!packet) {
-        throw std::runtime_error("Failed to allocate AVPacket");
+    AVFrame* frame = av_frame_alloc();
+    std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
+
+    if (!packet || !frame) {
+        throw std::runtime_error("Failed to allocate FFmpeg structures");
     }
 
     while (isRunning_) {
@@ -66,38 +67,55 @@ void VideoDecoder::DecodeVideo() {
             continue;
         }
 
-        if (av_read_frame(mediaFile_.GetFormatContext(), packet) >= 0) {
-            if (packet->stream_index == mediaFile_.GetVideoStreamIndex()) {
-                if (avcodec_send_packet(videoCodecContext_, packet) == 0) {
-                    AVFrame* frame = av_frame_alloc();
-                    if (!frame) {
-                        throw std::runtime_error("Failed to allocate AVFrame");
-                    }
+        int read_result = av_read_frame(mediaFile_.GetFormatContext(), packet);
+        if (read_result < 0) {
+            // Конец файла или ошибка чтения
+            if (read_result == AVERROR_EOF) {
+                isRunning_ = false;
+            }
+            continue;
+        }
 
-                    while (avcodec_receive_frame(videoCodecContext_, frame) == 0) {
-                        uint8_t* pixels = new uint8_t[videoCodecContext_->width * videoCodecContext_->height * 4];
-                        uint8_t* dest[4] = {pixels, nullptr, nullptr, nullptr};
-                        int destLinesize[4] = {videoCodecContext_->width * 4, 0, 0, 0};
+        if (packet->stream_index == mediaFile_.GetVideoStreamIndex()) {
+            if (avcodec_send_packet(videoCodecContext_, packet) != 0) {
+                av_packet_unref(packet);
+                continue;
+            }
 
-                        sws_scale(swsContext_, frame->data, frame->linesize, 0, videoCodecContext_->height, dest, destLinesize);
+            while (avcodec_receive_frame(videoCodecContext_, frame) == 0) {
+                // Конвертация в RGB32 для SFML
+                uint8_t* pixels = new uint8_t[videoCodecContext_->width * videoCodecContext_->height * 4];
+                uint8_t* dest[4] = {pixels};
+                int linesize[4] = {videoCodecContext_->width * 4};
 
-                        texture_.update(pixels);
-                        sprite_.setTexture(texture_);
+                sws_scale(swsContext_, frame->data, frame->linesize, 0, videoCodecContext_->height, dest, linesize);
 
-                        delete[] pixels;
+                // Блокировка мьютекса для обновления текстуры
+                lock.lock();
+                texture_.update(pixels);
+                lock.unlock();
 
-                        av_frame_unref(frame);
+                delete[] pixels;
 
-                        std::this_thread::sleep_for(std::chrono::milliseconds(1000 / videoCodecContext_->framerate.num));
-                    }
-                    av_frame_free(&frame);
+                // Синхронизация по времени
+                if (frame->best_effort_timestamp != AV_NOPTS_VALUE) {
+                    double pts = frame->best_effort_timestamp * mediaFile_.GetVideoTimeBase();
+                    auto target_time = startTime_ + std::chrono::duration<double>(pts);
+                    std::this_thread::sleep_until(target_time);
                 }
             }
-            av_packet_unref(packet);
-        } else {
-            isRunning_ = false;
         }
+        av_packet_unref(packet);
     }
 
     av_packet_free(&packet);
+    av_frame_free(&frame);
+}
+
+void VideoDecoder::Flush() {
+    avcodec_flush_buffers(videoCodecContext_);
+}
+
+void VideoDecoder::SetStartTime(std::chrono::steady_clock::time_point startTime) {
+    startTime_ = startTime;
 }
