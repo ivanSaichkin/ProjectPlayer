@@ -8,13 +8,13 @@ AudioDecoder::AudioDecoder(const MediaFile& mediaFile) : mediaFile_(mediaFile), 
     const AVCodec* codec = avcodec_find_decoder(codecParams->codec_id);
 
     if (!codec)
-        throw std::runtime_error("Unsupported audio codec");
+        throw AudioDecoderError("Unsupported audio codec");
 
     audioCodecContext_ = avcodec_alloc_context3(codec);
     avcodec_parameters_to_context(audioCodecContext_, codecParams);
 
     if (avcodec_open2(audioCodecContext_, codec, nullptr) < 0)
-        throw std::runtime_error("Failed to open audio codec");
+        throw AudioDecoderError("Failed to open audio codec");
 
     soundBuffer_.loadFromSamples(nullptr, 0, audioCodecContext_->sample_rate, audioCodecContext_->channels);
     sound_.setBuffer(soundBuffer_);
@@ -33,16 +33,8 @@ void AudioDecoder::Start() {
     std::thread([this]() { DecodeAudio(); }).detach();
 }
 
-void AudioDecoder::Stop() {
-    isRunning_ = false;
-}
-
 void AudioDecoder::SetVolume(float volume) {
     sound_.setVolume(volume);
-}
-
-void AudioDecoder::TogglePause() {
-    isRunning_ = !isRunning_;
 }
 
 void AudioDecoder::DecodeAudio() {
@@ -51,7 +43,7 @@ void AudioDecoder::DecodeAudio() {
     std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
 
     if (!packet || !frame) {
-        throw std::runtime_error("Failed to allocate FFmpeg structures");
+        throw AudioDecoderError("Failed to allocate FFmpeg structures");
     }
 
     // Рассчёт длительности сэмпла в микросекундах
@@ -115,8 +107,4 @@ void AudioDecoder::DecodeAudio() {
 
 void AudioDecoder::Flush() {
     avcodec_flush_buffers(audioCodecContext_);
-}
-
-void AudioDecoder::SetStartTime(std::chrono::steady_clock::time_point startTime) {
-    startTime_ = startTime;
 }

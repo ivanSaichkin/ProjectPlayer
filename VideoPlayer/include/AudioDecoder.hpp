@@ -9,12 +9,10 @@ class AudioDecoder : public Decoder {
  public:
     AudioDecoder(const MediaFile& mediaFile);
     ~AudioDecoder();
-    void Start() override;
-    void Stop() override;
     void SetVolume(float volume);
-    void TogglePause() override;
+
+    void Start() override;
     void Flush() override;
-    void SetStartTime(std::chrono::steady_clock::time_point startTime) override;
 
  private:
     void DecodeAudio();
@@ -23,6 +21,11 @@ class AudioDecoder : public Decoder {
     sf::Sound sound_;
     sf::SoundBuffer soundBuffer_;
     MediaFile mediaFile_;
+};
+
+class AudioDecoderError : public std::runtime_error {
+public:
+    explicit AudioDecoderError(const std::string& errMessage) : std::runtime_error(errMessage) {}
 };
 
 #endif

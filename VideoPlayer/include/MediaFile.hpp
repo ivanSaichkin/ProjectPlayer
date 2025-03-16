@@ -26,4 +26,9 @@ class MediaFile {
     int audioStreamIndex_;
 };
 
+class MediaFileError : public std::runtime_error {
+public:
+    explicit MediaFileError(const std::string& errMessage) : std::runtime_error(errMessage) {}
+};
+
 #endif

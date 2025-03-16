@@ -16,10 +16,10 @@ class Decoder {
     virtual ~Decoder() = default;
 
     virtual void Start() = 0;
-    virtual void Stop() = 0;
-    virtual void TogglePause() = 0;
+    void Stop();
+    void TogglePause();
     virtual void Flush() = 0;
-    virtual void SetStartTime(std::chrono::steady_clock::time_point startTime) = 0;
+    void SetStartTime(std::chrono::steady_clock::time_point startTime);
 
  protected:
     std::atomic<bool> isRunning_;

@@ -8,13 +8,13 @@ VideoDecoder::VideoDecoder(const MediaFile& mediaFile) : mediaFile_(mediaFile), 
     const AVCodec* codec = avcodec_find_decoder(codecParams->codec_id);
 
     if (!codec)
-        throw std::runtime_error("Unsupported video codec");
+        throw VideoDecoderError("Unsupported video codec");
 
     videoCodecContext_ = avcodec_alloc_context3(codec);
     avcodec_parameters_to_context(videoCodecContext_, codecParams);
 
     if (avcodec_open2(videoCodecContext_, codec, nullptr) < 0)
-        throw std::runtime_error("Failed to open video codec");
+        throw VideoDecoderError("Failed to open video codec");
 
     swsContext_ = sws_getContext(videoCodecContext_->width, videoCodecContext_->height, videoCodecContext_->pix_fmt, videoCodecContext_->width,
                                  videoCodecContext_->height, AV_PIX_FMT_RGB32, SWS_BILINEAR, nullptr, nullptr, nullptr);
@@ -40,16 +40,8 @@ void VideoDecoder::Start() {
     std::thread([this]() { DecodeVideo(); }).detach();
 }
 
-void VideoDecoder::Stop() {
-    isRunning_ = false;
-}
-
 void VideoDecoder::Draw(sf::RenderWindow& window) {
     window.draw(sprite_);
-}
-
-void VideoDecoder::TogglePause() {
-    isRunning_ = !isRunning_;
 }
 
 void VideoDecoder::DecodeVideo() {
@@ -58,7 +50,7 @@ void VideoDecoder::DecodeVideo() {
     std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
 
     if (!packet || !frame) {
-        throw std::runtime_error("Failed to allocate FFmpeg structures");
+        throw VideoDecoderError("Failed to allocate FFmpeg structures");
     }
 
     while (isRunning_) {
@@ -114,8 +106,4 @@ void VideoDecoder::DecodeVideo() {
 
 void VideoDecoder::Flush() {
     avcodec_flush_buffers(videoCodecContext_);
-}
-
-void VideoDecoder::SetStartTime(std::chrono::steady_clock::time_point startTime) {
-    startTime_ = startTime;
 }

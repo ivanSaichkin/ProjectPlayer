@@ -9,12 +9,10 @@ class VideoDecoder : public Decoder {
  public:
     VideoDecoder(const MediaFile& mediaFile);
     ~VideoDecoder();
-    void Start() override;
-    void Stop() override;
     void Draw(sf::RenderWindow& window);
-    void TogglePause() override;
+
+    void Start() override;
     void Flush() override;
-    void SetStartTime(std::chrono::steady_clock::time_point startTime) override;
 
  private:
     void DecodeVideo();
@@ -25,6 +23,11 @@ class VideoDecoder : public Decoder {
     sf::Texture texture_;
     sf::Sprite sprite_;
     MediaFile mediaFile_;
+};
+
+class VideoDecoderError : public std::runtime_error {
+public:
+    explicit VideoDecoderError(const std::string& errMessage) : std::runtime_error(errMessage) {}
 };
 
 #endif

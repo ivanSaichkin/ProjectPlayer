@@ -13,11 +13,11 @@ bool MediaFile::Load(const std::string& filename) {
     this->filePath_ = filename;
 
     if (avformat_open_input(&formatContext_, filePath_.c_str(), nullptr, nullptr) != 0) {
-        throw std::runtime_error("Couldn't open");
+        throw MediaFileError("Couldn't open");
     }
 
     if (avformat_find_stream_info(formatContext_, nullptr) < 0) {
-        throw std::runtime_error("Couldn't find stream info");
+        throw MediaFileError("Couldn't find stream info");
     }
 
     for (size_t i = 0; i < formatContext_->nb_streams; ++i) {
@@ -29,7 +29,7 @@ bool MediaFile::Load(const std::string& filename) {
     }
 
     if (videoStreamIndex_ == -1) {
-        throw std::runtime_error("Couldn't find a video stream");
+        throw MediaFileError("Couldn't find a video stream");
     }
 
     return true;
