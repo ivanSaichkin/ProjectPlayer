@@ -1,6 +1,5 @@
-/* Содержит файлы для рисования кнопки play и функции,
+/* Содержит файлы для рисования кнопки Play и функции,
 создающие эту кнопку */
-
 
 #ifndef PLAYBUTTON_HPP
 #define PLAYBUTTON_HPP
@@ -11,7 +10,7 @@
 
 namespace PlayButton {
 bool LoadTexture(sf::Texture& texture);
-void CreatePlayButton(Button& playButton);
+Button CreatePlayButton();
 sf::Sprite CreateSprite(sf::Texture& texture);
 }
 
