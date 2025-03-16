@@ -1,4 +1,3 @@
-```markdown
 # Video Player Project Class Documentation
 
 ## 1. Class `MediaFile`
