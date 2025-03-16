@@ -113,4 +113,3 @@
 ## Dependencies
 - **FFmpeg**: Video/audio decoding.
 - **SFML 2.5+**: Graphics and audio.
-```
