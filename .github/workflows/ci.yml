@@ -6,11 +6,11 @@ jobs:
     container: ghcr.io/cpp-linter/clang-tools:18
     steps:
       - uses: actions/checkout@v4
-      - run: clang-format --dry-run -Werror *.cpp
+      - run: clang-format --dry-run -Werror VideoPlater/src/*.cpp
 
   clang-tidy:
     runs-on: ubuntu-latest
     container: ghcr.io/cpp-linter/clang-tools:18
     steps:
       - uses: actions/checkout@v4
-      - run: clang-tidy *.cpp -- -std=c++20
+      - run: clang-tidy VideoPlater/src/*.cpp -- -std=c++20
