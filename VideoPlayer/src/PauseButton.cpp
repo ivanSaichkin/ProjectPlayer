@@ -7,6 +7,6 @@ PauseButton::PauseButton(const sf::Vector2f& position, const sf::Vector2f& size)
 }
 
 void PauseButton::onClick() const {
-    std::cout << "Pause button clicked!" << std::endl;
+    std::cout << "Кнопка паузы нажата!" << std::endl;
     // Здесь можно добавить логику для кнопки Pause
 }

@@ -7,6 +7,6 @@ PlayButton::PlayButton(const sf::Vector2f& position, const sf::Vector2f& size)
 }
 
 void PlayButton::onClick() const {
-    std::cout << "Play button clicked!" << std::endl;
+    std::cout << "Кнопка плей нажата!" << std::endl;
     // Здесь можно добавить логику для кнопки Play
 }

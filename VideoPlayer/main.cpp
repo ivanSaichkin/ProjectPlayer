@@ -3,6 +3,7 @@
 #include "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/Button.hpp"
 #include "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/PlayButton.hpp"
 #include "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/PauseButton.hpp"
+#include "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/ScrollBar.hpp"
 #include <SFML/Graphics.hpp>
 #include <iostream>
 
@@ -12,8 +13,9 @@ int main() {
     return -1;
   }
 
-  PlayButton playButton({335, 300}, {50, 50});   // создаём кнопку Play
-  PauseButton pauseButton({265, 300}, {50, 50});
+  PlayButton playButton({315, 300}, {50, 50});   // создаём кнопку Play
+  PauseButton pauseButton({245, 300}, {50, 50});
+  ScrollBar scrollBar({50, 360}, {500, 10}, sf::Color::White, sf::Color::Green);
   sf::RenderWindow window(sf::VideoMode(600, 400), L"Новый проект",
                           sf::Style::Default);
   window.setVerticalSyncEnabled(true);   // включаем вертикальную синхронизацию (пока что так)
@@ -35,6 +37,7 @@ int main() {
     window.clear();
     playButton.draw(window);
     pauseButton.draw(window);
+    scrollBar.draw(window);
     window.display();
   }
   // конец основного цикла
