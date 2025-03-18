@@ -12,8 +12,8 @@ int main() {
     return -1;
   }
 
-  Button playButton = PlayButton::CreatePlayButton();   // создаём кнопку Play
-  Button pauseButton = PauseButton::CreatePauseButton();
+  PlayButton playButton({335, 300}, {50, 50});   // создаём кнопку Play
+  PauseButton pauseButton({265, 300}, {50, 50});
   sf::RenderWindow window(sf::VideoMode(600, 400), L"Новый проект",
                           sf::Style::Default);
   window.setVerticalSyncEnabled(true);   // включаем вертикальную синхронизацию (пока что так)

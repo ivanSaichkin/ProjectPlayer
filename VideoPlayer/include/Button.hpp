@@ -13,7 +13,7 @@ public:
     // Оператор присваивания
     Button& operator=(const Button& other);
 
-    void draw(sf::RenderWindow& window) const;
+    virtual void draw(sf::RenderWindow& window) const; //
     bool isMouseOver(const sf::RenderWindow& window) const;
     void onClick(std::function<void()> callback);
 
@@ -30,7 +30,7 @@ public:
     void setSprite(const sf::Sprite& newSprite);   // Установить спрайт
     void setOnClickCallback(std::function<void()> newCallback); // Установить callback
 
-private:
+protected:
     sf::Texture texture; // Текстура для кнопки
     sf::Sprite sprite;   // Спрайт для отображения текстуры
     std::function<void()> onClickCallback;

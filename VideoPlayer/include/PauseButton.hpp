@@ -8,12 +8,10 @@
 #include <functional>
 #include "Button.hpp"
 
-namespace PauseButton {
-bool LoadTexture(sf::Texture& texture);
-Button CreatePauseButton();
-sf::Sprite CreateSprite(sf::Texture& texture);
-}
-
-
+class PauseButton : public Button {
+    public:
+        PauseButton(const sf::Vector2f& position, const sf::Vector2f& size);
+        void onClick() const;
+};
 
 #endif // PAUSEBUTTON_HPP

@@ -8,12 +8,10 @@
 #include <functional>
 #include "Button.hpp"
 
-namespace PlayButton {
-bool LoadTexture(sf::Texture& texture);
-Button CreatePlayButton();
-sf::Sprite CreateSprite(sf::Texture& texture);
-}
-
-
+class PlayButton : public Button {
+public:
+    PlayButton(const sf::Vector2f& position, const sf::Vector2f& size);
+    void onClick() const; // Переопределяем метод для специфичного поведения
+};
 
 #endif // PLAYBUTTON_HPP
