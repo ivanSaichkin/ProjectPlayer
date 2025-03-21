@@ -1,5 +1,5 @@
-CMakeFiles/ButtonExample.dir/main.cpp.o: \
-  /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/main.cpp \
+CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o: \
+  /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/ProgressBar.cpp \
   /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/Button.hpp \
   /opt/homebrew/Cellar/sfml@2/2.6.2_1/include/SFML/Graphics.hpp \
   /opt/homebrew/Cellar/sfml@2/2.6.2_1/include/SFML/Window.hpp \
@@ -953,8 +953,6 @@ CMakeFiles/ButtonExample.dir/main.cpp.o: \
   /opt/homebrew/Cellar/sfml@2/2.6.2_1/include/SFML/Graphics/Sprite.hpp \
   /opt/homebrew/Cellar/sfml@2/2.6.2_1/include/SFML/Graphics/Text.hpp \
   /opt/homebrew/Cellar/sfml@2/2.6.2_1/include/SFML/Graphics/VertexBuffer.hpp \
-  /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/PlayButton.hpp \
-  /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/PauseButton.hpp \
   /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/ProgressBar.hpp \
   /Library/Developer/CommandLineTools/SDKs/MacOSX14.4.sdk/usr/include/c++/v1/iostream \
   /Library/Developer/CommandLineTools/SDKs/MacOSX14.4.sdk/usr/include/c++/v1/istream

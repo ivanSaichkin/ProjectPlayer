@@ -1,9 +1,9 @@
 #include "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/Button.hpp"
-#include "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/ScrollBar.hpp"
+#include "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/ProgressBar.hpp"
 #include <iostream>
 
 
-ScrollBar::ScrollBar(const sf::Vector2f& position, const sf::Vector2f& size, const sf::Color& trackColor, const sf::Color& thumbColor)
+ProgressBar::ProgressBar(const sf::Vector2f& position, const sf::Vector2f& size, const sf::Color& trackColor, const sf::Color& thumbColor)
     : Button() {
     // Инициализация фона (track)
     track.setSize(size);
@@ -11,7 +11,7 @@ ScrollBar::ScrollBar(const sf::Vector2f& position, const sf::Vector2f& size, con
     track.setFillColor(trackColor);
 
     // Инициализация бегунка (thumb)
-    thumb.setRadius(size.y / 2.0f); // Бегунок будет круглым с радиусом, равным половине высоты полосы
+    thumb.setRadius(size.y); // Бегунок будет круглым с радиусом
     thumb.setFillColor(thumbColor);
     thumb.setOrigin(thumb.getRadius(), thumb.getRadius()); // Центрируем бегунок
 
@@ -23,12 +23,13 @@ ScrollBar::ScrollBar(const sf::Vector2f& position, const sf::Vector2f& size, con
     setSize(size);
 }
 
-void ScrollBar::draw(sf::RenderWindow& window) const {
+void ProgressBar::draw(sf::RenderWindow& window) const {
     window.draw(track); // Рисуем фон
     window.draw(thumb); // Рисуем бегунок
 }
 
-void ScrollBar::updateThumbPosition(float progress) {
+// здесь надо связывать с декодированием уже
+void ProgressBar::updateThumbPosition(float progress) {
     // Ограничиваем прогресс в пределах [0.0, 1.0]
     progress = std::max(0.0f, std::min(1.0f, progress));
 
@@ -43,13 +44,35 @@ void ScrollBar::updateThumbPosition(float progress) {
     }
 }
 
-void ScrollBar::onClick(std::function<void(float)> callback) {
-    onClickCallback = callback; // Сохраняем callback
+void ProgressBar::onClick(std::function<void(float)> callback) {
+    onClickCallback = callback; // Сохраняем callback (а надо ли его ваще использовать??)
 }
 
-bool ScrollBar::isMouseOver(const sf::RenderWindow& window) const {
+bool ProgressBar::isMouseOver(const sf::RenderWindow& window) const {
     sf::Vector2f mousePos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
     // Проверяем, находится ли курсор над бегунком (кругом)
     float distanceSquared = std::pow(mousePos.x - thumb.getPosition().x, 2) + std::pow(mousePos.y - thumb.getPosition().y, 2);
     return distanceSquared <= std::pow(thumb.getRadius(), 2);
+}
+
+void ProgressBar::changePosition(const sf::Vector2f& position) {
+    this->setPosition(position);
+
+}
+
+void ProgressBar::setThumbColor(const sf::Color& color) {
+    thumb.setFillColor(color); // Устанавливаем цвет ползунка
+}
+
+void ProgressBar::setTrackColor(const sf::Color& color) {
+    track.setFillColor(color);
+}
+
+bool ProgressBar::isThumbClicked(const sf::RenderWindow& window) const {
+    // Проверяем, находится ли курсор мыши над бегунком
+    if (isMouseOver(window)) {
+        // Проверяем, нажата ли левая кнопка мыши
+        return sf::Mouse::isButtonPressed(sf::Mouse::Left);
+    }
+    return false;
 }

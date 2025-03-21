@@ -93,3 +93,14 @@ void Button::setSprite(const sf::Sprite& newSprite) {
 void Button::setOnClickCallback(std::function<void()> newCallback) {
     onClickCallback = newCallback;
 }
+
+
+// Используется когда наводим мышку на кнопку
+void Button::resize(const sf::Vector2f& size, const sf::Vector2f& position) {
+    this->setSize(size);
+    this->changePosition(position);
+}
+
+void Button::changePosition(const sf::Vector2f& position) {
+    sprite.setPosition(position);
+}

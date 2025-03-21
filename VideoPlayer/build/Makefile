@@ -177,6 +177,78 @@ src/Button.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ButtonExample.dir/build.make CMakeFiles/ButtonExample.dir/src/Button.cpp.s
 .PHONY : src/Button.cpp.s
 
+src/PauseButton.o: src/PauseButton.cpp.o
+.PHONY : src/PauseButton.o
+
+# target to build an object file
+src/PauseButton.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ButtonExample.dir/build.make CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o
+.PHONY : src/PauseButton.cpp.o
+
+src/PauseButton.i: src/PauseButton.cpp.i
+.PHONY : src/PauseButton.i
+
+# target to preprocess a source file
+src/PauseButton.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ButtonExample.dir/build.make CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.i
+.PHONY : src/PauseButton.cpp.i
+
+src/PauseButton.s: src/PauseButton.cpp.s
+.PHONY : src/PauseButton.s
+
+# target to generate assembly for a file
+src/PauseButton.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ButtonExample.dir/build.make CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.s
+.PHONY : src/PauseButton.cpp.s
+
+src/PlayButton.o: src/PlayButton.cpp.o
+.PHONY : src/PlayButton.o
+
+# target to build an object file
+src/PlayButton.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ButtonExample.dir/build.make CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o
+.PHONY : src/PlayButton.cpp.o
+
+src/PlayButton.i: src/PlayButton.cpp.i
+.PHONY : src/PlayButton.i
+
+# target to preprocess a source file
+src/PlayButton.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ButtonExample.dir/build.make CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.i
+.PHONY : src/PlayButton.cpp.i
+
+src/PlayButton.s: src/PlayButton.cpp.s
+.PHONY : src/PlayButton.s
+
+# target to generate assembly for a file
+src/PlayButton.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ButtonExample.dir/build.make CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.s
+.PHONY : src/PlayButton.cpp.s
+
+src/ProgressBar.o: src/ProgressBar.cpp.o
+.PHONY : src/ProgressBar.o
+
+# target to build an object file
+src/ProgressBar.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ButtonExample.dir/build.make CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o
+.PHONY : src/ProgressBar.cpp.o
+
+src/ProgressBar.i: src/ProgressBar.cpp.i
+.PHONY : src/ProgressBar.i
+
+# target to preprocess a source file
+src/ProgressBar.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ButtonExample.dir/build.make CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.i
+.PHONY : src/ProgressBar.cpp.i
+
+src/ProgressBar.s: src/ProgressBar.cpp.s
+.PHONY : src/ProgressBar.s
+
+# target to generate assembly for a file
+src/ProgressBar.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ButtonExample.dir/build.make CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.s
+.PHONY : src/ProgressBar.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -192,6 +264,15 @@ help:
 	@echo "... src/Button.o"
 	@echo "... src/Button.i"
 	@echo "... src/Button.s"
+	@echo "... src/PauseButton.o"
+	@echo "... src/PauseButton.i"
+	@echo "... src/PauseButton.s"
+	@echo "... src/PlayButton.o"
+	@echo "... src/PlayButton.i"
+	@echo "... src/PlayButton.s"
+	@echo "... src/ProgressBar.o"
+	@echo "... src/ProgressBar.i"
+	@echo "... src/ProgressBar.s"
 .PHONY : help
 
 

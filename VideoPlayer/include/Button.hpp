@@ -30,6 +30,10 @@ public:
     void setSprite(const sf::Sprite& newSprite);   // Установить спрайт
     void setOnClickCallback(std::function<void()> newCallback); // Установить callback
 
+    // Вспомогательные методы (для интерактивной работы)
+    void resize(const sf::Vector2f& size, const sf::Vector2f& position);
+    void changePosition(const sf::Vector2f& position);
+
 protected:
     sf::Texture texture; // Текстура для кнопки
     sf::Sprite sprite;   // Спрайт для отображения текстуры

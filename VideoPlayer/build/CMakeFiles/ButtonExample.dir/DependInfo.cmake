@@ -10,6 +10,9 @@ set(CMAKE_DEPENDS_LANGUAGES
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/main.cpp" "CMakeFiles/ButtonExample.dir/main.cpp.o" "gcc" "CMakeFiles/ButtonExample.dir/main.cpp.o.d"
   "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/Button.cpp" "CMakeFiles/ButtonExample.dir/src/Button.cpp.o" "gcc" "CMakeFiles/ButtonExample.dir/src/Button.cpp.o.d"
+  "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/PauseButton.cpp" "CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o" "gcc" "CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o.d"
+  "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/PlayButton.cpp" "CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o" "gcc" "CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o.d"
+  "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/ProgressBar.cpp" "CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o" "gcc" "CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

@@ -100,22 +100,70 @@ CMakeFiles/ButtonExample.dir/src/Button.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/ButtonExample.dir/src/Button.cpp.s"
 	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/Button.cpp -o CMakeFiles/ButtonExample.dir/src/Button.cpp.s
 
+CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o: CMakeFiles/ButtonExample.dir/flags.make
+CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o: /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/PlayButton.cpp
+CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o: CMakeFiles/ButtonExample.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o -MF CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o.d -o CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o -c /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/PlayButton.cpp
+
+CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.i"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/PlayButton.cpp > CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.i
+
+CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.s"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/PlayButton.cpp -o CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.s
+
+CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o: CMakeFiles/ButtonExample.dir/flags.make
+CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o: /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/PauseButton.cpp
+CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o: CMakeFiles/ButtonExample.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o -MF CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o.d -o CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o -c /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/PauseButton.cpp
+
+CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.i"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/PauseButton.cpp > CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.i
+
+CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.s"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/PauseButton.cpp -o CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.s
+
+CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o: CMakeFiles/ButtonExample.dir/flags.make
+CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o: /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/ProgressBar.cpp
+CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o: CMakeFiles/ButtonExample.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o -MF CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o.d -o CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o -c /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/ProgressBar.cpp
+
+CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.i"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/ProgressBar.cpp > CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.i
+
+CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.s"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/src/ProgressBar.cpp -o CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.s
+
 # Object files for target ButtonExample
 ButtonExample_OBJECTS = \
 "CMakeFiles/ButtonExample.dir/main.cpp.o" \
-"CMakeFiles/ButtonExample.dir/src/Button.cpp.o"
+"CMakeFiles/ButtonExample.dir/src/Button.cpp.o" \
+"CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o" \
+"CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o" \
+"CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o"
 
 # External object files for target ButtonExample
 ButtonExample_EXTERNAL_OBJECTS =
 
 ButtonExample: CMakeFiles/ButtonExample.dir/main.cpp.o
 ButtonExample: CMakeFiles/ButtonExample.dir/src/Button.cpp.o
+ButtonExample: CMakeFiles/ButtonExample.dir/src/PlayButton.cpp.o
+ButtonExample: CMakeFiles/ButtonExample.dir/src/PauseButton.cpp.o
+ButtonExample: CMakeFiles/ButtonExample.dir/src/ProgressBar.cpp.o
 ButtonExample: CMakeFiles/ButtonExample.dir/build.make
 ButtonExample: /usr/local/lib/libsfml-graphics.2.6.1.dylib
 ButtonExample: /usr/local/lib/libsfml-window.2.6.1.dylib
 ButtonExample: /usr/local/lib/libsfml-system.2.6.1.dylib
 ButtonExample: CMakeFiles/ButtonExample.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable ButtonExample"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Linking CXX executable ButtonExample"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/ButtonExample.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
