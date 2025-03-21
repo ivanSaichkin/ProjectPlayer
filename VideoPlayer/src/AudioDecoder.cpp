@@ -1,23 +1,43 @@
 #include "../include/AudioDecoder.hpp"
 
-AudioDecoder::AudioDecoder(const MediaFile& mediaFile) : mediaFile_(mediaFile), audioCodecContext_(nullptr) {
-    isPaused_ = false;
+#include <iostream>
+#include <vector>
+
+AudioDecoder::AudioDecoder(const MediaFile& mediaFile)
+    : audioCodecContext_(nullptr),
+      mediaFile_(mediaFile) {
+
     isRunning_ = false;
+    isPaused_ = false;
 
-    AVCodecParameters* codecParams = mediaFile_.GetFormatContext()->streams[mediaFile_.GetAudioStreamIndex()]->codecpar;
-    const AVCodec* codec = avcodec_find_decoder(codecParams->codec_id);
+    int audioStreamIndex = mediaFile_.GetAudioStreamIndex();
+    if (audioStreamIndex < 0) {
+        throw AudioDecoderError("No audio stream found");
+    }
 
-    if (!codec)
+    AVStream* audioStream = mediaFile_.GetFormatContext()->streams[audioStreamIndex];
+
+    // Find decoder
+    const AVCodec* codec = avcodec_find_decoder(audioStream->codecpar->codec_id);
+    if (!codec) {
         throw AudioDecoderError("Unsupported audio codec");
+    }
 
+    // Allocate codec context
     audioCodecContext_ = avcodec_alloc_context3(codec);
-    avcodec_parameters_to_context(audioCodecContext_, codecParams);
+    if (!audioCodecContext_) {
+        throw AudioDecoderError("Could not allocate audio codec context");
+    }
 
-    if (avcodec_open2(audioCodecContext_, codec, nullptr) < 0)
-        throw AudioDecoderError("Failed to open audio codec");
+    // Copy codec parameters
+    if (avcodec_parameters_to_context(audioCodecContext_, audioStream->codecpar) < 0) {
+        throw AudioDecoderError("Could not copy audio codec parameters");
+    }
 
-    soundBuffer_.loadFromSamples(nullptr, 0, audioCodecContext_->sample_rate, audioCodecContext_->channels);
-    sound_.setBuffer(soundBuffer_);
+    // Open codec
+    if (avcodec_open2(audioCodecContext_, codec, nullptr) < 0) {
+        throw AudioDecoderError("Could not open audio codec");
+    }
 }
 
 AudioDecoder::~AudioDecoder() {
@@ -28,83 +48,122 @@ AudioDecoder::~AudioDecoder() {
     }
 }
 
-void AudioDecoder::Start() {
-    isRunning_ = true;
-    std::thread([this]() { DecodeAudio(); }).detach();
-}
-
 void AudioDecoder::SetVolume(float volume) {
     sound_.setVolume(volume);
+}
+
+void AudioDecoder::Start() {
+    if (!isRunning_) {
+        isRunning_ = true;
+        isPaused_ = false;
+        std::thread decodeThread(&AudioDecoder::DecodeAudio, this);
+        decodeThread.detach();
+    }
+}
+
+void AudioDecoder::Flush() {
+    if (audioCodecContext_) {
+        avcodec_flush_buffers(audioCodecContext_);
+    }
 }
 
 void AudioDecoder::DecodeAudio() {
     AVPacket* packet = av_packet_alloc();
     AVFrame* frame = av_frame_alloc();
-    std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
 
     if (!packet || !frame) {
-        throw AudioDecoderError("Failed to allocate FFmpeg structures");
+        std::cerr << "Could not allocate packet or frame" << std::endl;
+        if (packet) av_packet_free(&packet);
+        if (frame) av_frame_free(&frame);
+        return;
     }
 
-    // Рассчёт длительности сэмпла в микросекундах
-    const double time_per_sample = 1.0 / audioCodecContext_->sample_rate;
-    auto start_time = std::chrono::steady_clock::now();
+    AVFormatContext* formatContext = mediaFile_.GetFormatContext();
+    int audioStreamIndex = mediaFile_.GetAudioStreamIndex();
+    double audioTimeBase = mediaFile_.GetAudioTimeBase();
 
-    while (isRunning_) {
-        if (isPaused_) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            continue;
-        }
+    // Prepare audio buffer
+    std::vector<int16_t> audioBuffer;
 
-        int read_result = av_read_frame(mediaFile_.GetFormatContext(), packet);
-        if (read_result < 0) {
-            if (read_result == AVERROR_EOF) {
-                // Достигнут конец файла
-                isRunning_ = false;
-            }
-            continue;
-        }
+    while (isRunning_ && av_read_frame(formatContext, packet) >= 0) {
+        if (packet->stream_index == audioStreamIndex) {
+            int response = avcodec_send_packet(audioCodecContext_, packet);
 
-        if (packet->stream_index == mediaFile_.GetAudioStreamIndex()) {
-            if (avcodec_send_packet(audioCodecContext_, packet) != 0) {
-                av_packet_unref(packet);
-                continue;
+            if (response < 0) {
+                std::cerr << "Error sending packet for audio decoding" << std::endl;
+                break;
             }
 
-            while (avcodec_receive_frame(audioCodecContext_, frame) == 0) {
-                // Получаем временную метку
-                double pts = frame->best_effort_timestamp * mediaFile_.GetAudioTimeBase();
+            while (response >= 0) {
+                response = avcodec_receive_frame(audioCodecContext_, frame);
 
-                // Расчёт задержки для синхронизации
-                auto target_time = start_time + std::chrono::duration<double>(pts);
-                std::this_thread::sleep_until(target_time);
+                if (response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
+                    break;
+                } else if (response < 0) {
+                    std::cerr << "Error during audio decoding" << std::endl;
+                    isRunning_ = false;
+                    break;
+                }
 
-                // Конвертация данных
-                std::vector<int16_t> samples(frame->nb_samples * frame->channels);
-                for (int i = 0; i < frame->nb_samples; i++) {
-                    for (int ch = 0; ch < frame->channels; ch++) {
-                        samples[i * frame->channels + ch] = reinterpret_cast<int16_t*>(frame->data[ch])[i];
+                // Process audio data
+                int numSamples = frame->nb_samples;
+                int channels = audioCodecContext_->channels;
+
+                // Resize buffer to fit new samples
+                size_t oldSize = audioBuffer.size();
+                audioBuffer.resize(oldSize + numSamples * channels);
+
+                // Convert audio to int16_t format
+                for (int i = 0; i < numSamples; i++) {
+                    for (int ch = 0; ch < channels; ch++) {
+                        if (audioCodecContext_->sample_fmt == AV_SAMPLE_FMT_FLTP) {
+                            float sample = ((float*)frame->data[ch])[i];
+                            audioBuffer[oldSize + i * channels + ch] = (int16_t)(sample * 32767);
+                        } else if (audioCodecContext_->sample_fmt == AV_SAMPLE_FMT_S16) {
+                            audioBuffer[oldSize + i * channels + ch] = ((int16_t*)frame->data[0])[i * channels + ch];
+                        }
                     }
                 }
 
-                // Блокировка мьютекса для обновления буфера
-                lock.lock();
-                soundBuffer_.loadFromSamples(samples.data(), samples.size(), frame->channels, audioCodecContext_->sample_rate);
-                sound_.setBuffer(soundBuffer_);
-                sound_.play();
-                lock.unlock();
+                // Load audio data into SFML sound buffer when we have enough data
+                if (audioBuffer.size() >= audioCodecContext_->sample_rate * channels) {
+                    std::lock_guard<std::mutex> lock(mutex_);
+
+                    if (soundBuffer_.loadFromSamples(
+                        audioBuffer.data(),
+                        audioBuffer.size(),
+                        channels,
+                        audioCodecContext_->sample_rate)) {
+
+                        sound_.setBuffer(soundBuffer_);
+                        sound_.play();
+
+                        // Clear buffer after loading
+                        audioBuffer.clear();
+                    }
+                }
+
+                // Wait if paused
+                while (isPaused_ && isRunning_) {
+                    sound_.pause();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
+
+                if (!isPaused_ && sound_.getStatus() == sf::Sound::Paused) {
+                    sound_.play();
+                }
+
+                if (!isRunning_) {
+                    break;
+                }
             }
         }
+
         av_packet_unref(packet);
     }
 
     av_packet_free(&packet);
     av_frame_free(&frame);
 
-    // Остановка воспроизведения при завершении
-    sound_.stop();
-}
-
-void AudioDecoder::Flush() {
-    avcodec_flush_buffers(audioCodecContext_);
+    isRunning_ = false;
 }

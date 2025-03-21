@@ -4,7 +4,9 @@
 #include <stdexcept>
 #include <string>
 
-#include "libavformat/avformat.h"
+extern "C"{
+    #include "libavformat/avformat.h"
+}
 
 class MediaFile {
  public:

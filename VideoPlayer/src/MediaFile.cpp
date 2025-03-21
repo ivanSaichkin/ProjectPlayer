@@ -1,6 +1,11 @@
 #include "../include/MediaFile.hpp"
 
-MediaFile::MediaFile() : formatContext_(nullptr), videoStreamIndex_(-1), audioStreamIndex_(-1) {
+#include <iostream>
+
+MediaFile::MediaFile()
+    : formatContext_(nullptr),
+      videoStreamIndex_(-1),
+      audioStreamIndex_(-1) {
 }
 
 MediaFile::~MediaFile() {
@@ -10,26 +15,38 @@ MediaFile::~MediaFile() {
 }
 
 bool MediaFile::Load(const std::string& filename) {
-    this->filePath_ = filename;
+    filePath_ = filename;
 
-    if (avformat_open_input(&formatContext_, filePath_.c_str(), nullptr, nullptr) != 0) {
-        throw MediaFileError("Couldn't open");
+    // Open input file
+    formatContext_ = avformat_alloc_context();
+    if (!formatContext_) {
+        throw MediaFileError("Could not allocate format context");
     }
 
+    if (avformat_open_input(&formatContext_, filename.c_str(), nullptr, nullptr) != 0) {
+        throw MediaFileError("Could not open input file: " + filename);
+    }
+
+    // Find stream information
     if (avformat_find_stream_info(formatContext_, nullptr) < 0) {
-        throw MediaFileError("Couldn't find stream info");
+        throw MediaFileError("Could not find stream information");
     }
 
-    for (size_t i = 0; i < formatContext_->nb_streams; ++i) {
-        if (formatContext_->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+    // Find video and audio streams
+    videoStreamIndex_ = -1;
+    audioStreamIndex_ = -1;
+
+    for (unsigned int i = 0; i < formatContext_->nb_streams; i++) {
+        AVStream* stream = formatContext_->streams[i];
+        if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && videoStreamIndex_ < 0) {
             videoStreamIndex_ = i;
-        } else if (formatContext_->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+        } else if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && audioStreamIndex_ < 0) {
             audioStreamIndex_ = i;
         }
     }
 
-    if (videoStreamIndex_ == -1) {
-        throw MediaFileError("Couldn't find a video stream");
+    if (videoStreamIndex_ == -1 && audioStreamIndex_ == -1) {
+        throw MediaFileError("No audio or video streams found");
     }
 
     return true;
@@ -52,9 +69,17 @@ AVFormatContext* MediaFile::GetFormatContext() const {
 }
 
 double MediaFile::GetVideoTimeBase() const {
-    return av_q2d(formatContext_->streams[videoStreamIndex_]->time_base);
+    if (videoStreamIndex_ >= 0) {
+        AVStream* stream = formatContext_->streams[videoStreamIndex_];
+        return av_q2d(stream->time_base);
+    }
+    return 0.0;
 }
 
 double MediaFile::GetAudioTimeBase() const {
-    return av_q2d(formatContext_->streams[audioStreamIndex_]->time_base);
+    if (audioStreamIndex_ >= 0) {
+        AVStream* stream = formatContext_->streams[audioStreamIndex_];
+        return av_q2d(stream->time_base);
+    }
+    return 0.0;
 }

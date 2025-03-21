@@ -6,10 +6,12 @@
 #include <mutex>
 #include <thread>
 
-#include "libavcodec/avcodec.h"
-#include "libavformat/avformat.h"
-#include "libavutil/imgutils.h"
-#include "libswscale/swscale.h"
+extern "C" {
+   #include "libavcodec/avcodec.h"
+   #include "libavformat/avformat.h"
+   #include "libavutil/imgutils.h"
+   #include "libswscale/swscale.h"
+}
 
 class Decoder {
  public:
