@@ -4,8 +4,8 @@
 #include <stdexcept>
 #include <string>
 
-extern "C"{
-    #include "libavformat/avformat.h"
+extern "C" {
+#include "libavformat/avformat.h"
 }
 
 class MediaFile {
@@ -29,7 +29,7 @@ class MediaFile {
 };
 
 class MediaFileError : public std::runtime_error {
-public:
+ public:
     explicit MediaFileError(const std::string& errMessage) : std::runtime_error(errMessage) {}
 };
 

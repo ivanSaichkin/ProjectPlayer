@@ -2,10 +2,7 @@
 
 #include <iostream>
 
-MediaFile::MediaFile()
-    : formatContext_(nullptr),
-      videoStreamIndex_(-1),
-      audioStreamIndex_(-1) {
+MediaFile::MediaFile() : formatContext_(nullptr), videoStreamIndex_(-1), audioStreamIndex_(-1) {
 }
 
 MediaFile::~MediaFile() {

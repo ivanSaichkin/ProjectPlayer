@@ -1,6 +1,8 @@
 #ifndef VIDEODECODER_HPP
 #define VIDEODECODER_HPP
 
+#include <queue>
+
 #include "Decoder.hpp"
 #include "MediaFile.hpp"
 #include "SFML/Graphics.hpp"
@@ -13,9 +15,12 @@ class VideoDecoder : public Decoder {
 
     void Start() override;
     void Flush() override;
+    void ProcessPacket(AVPacket* packet) override;
+    void SignalEndOfStream() override;
 
  private:
     void DecodeVideo();
+    void ProcessVideoFrame(AVFrame* frame);
 
     AVCodecContext* videoCodecContext_;
     AVFrame* videoFrame_;
@@ -26,7 +31,7 @@ class VideoDecoder : public Decoder {
 };
 
 class VideoDecoderError : public std::runtime_error {
-public:
+ public:
     explicit VideoDecoderError(const std::string& errMessage) : std::runtime_error(errMessage) {}
 };
 

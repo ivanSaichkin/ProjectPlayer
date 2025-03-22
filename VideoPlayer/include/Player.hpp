@@ -5,6 +5,9 @@
 #include "MediaFile.hpp"
 #include "VideoDecoder.hpp"
 
+#include <thread>
+#include <atomic>
+
 class Player {
  public:
     Player();
@@ -17,13 +20,19 @@ class Player {
     void SetVolume(float volume);
     double GetDuration() const;
     double GetCurrentTime() const;
+    float GetVolume() const;
 
  private:
+    void PlaybackLoop();
+
     MediaFile mediaFile_;
     std::unique_ptr<VideoDecoder> videoDecoder_;
     std::unique_ptr<AudioDecoder> audioDecoder_;
     std::chrono::steady_clock::time_point startTime_;
     double timeOffset_;
+    std::thread playbackThread_;
+    std::atomic<bool> isRunning_;
+    std::atomic<bool> isPaused_;
 };
 
 #endif
