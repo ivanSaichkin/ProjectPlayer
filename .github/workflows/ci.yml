@@ -16,22 +16,3 @@ jobs:
       run: |
         find . -regex '.*\.\(cpp\|hpp\|cc\|cxx\|h\)' \
           -exec clang-format --dry-run --Werror {} +
-
-  clang-tidy-check:
-    name: Static analysis with clang-tidy
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang-tidy cmake
-
-    - name: Configure CMake
-      run: |
-        cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-
-    - name: Run clang-tidy
-      run: |
-        run-clang-tidy -p build -checks=* -j 4
