@@ -1,16 +1,36 @@
+name: C++ Code Checks
+
 on: push
-
 jobs:
-  clang-format:
+  clang-format-check:
+    name: Check code formatting
     runs-on: ubuntu-latest
-    container: ghcr.io/cpp-linter/clang-tools:18
     steps:
-      - uses: actions/checkout@v4
-      - run: clang-format --dry-run -Werror VideoPlayer/*.cpp
+    - uses: actions/checkout@v4
 
-  clang-tidy:
+    - name: Install clang-format
+      run: sudo apt-get update && sudo apt-get install -y clang-format
+
+    - name: Check formatting
+      run: |
+        find . -regex '.*\.\(cpp\|hpp\|cc\|cxx\|h\)' \
+          -exec clang-format --dry-run --Werror {} +
+
+  clang-tidy-check:
+    name: Static analysis with clang-tidy
     runs-on: ubuntu-latest
-    container: ghcr.io/cpp-linter/clang-tools:18
     steps:
-      - uses: actions/checkout@v4
-      - run: clang-tidy VideoPlayer/*.cpp -- -std=c++20
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-tidy cmake
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+    - name: Run clang-tidy
+      run: |
+        run-clang-tidy -p build -checks=* -j 4
