@@ -1,12 +1,12 @@
 #ifndef PLAYER_HPP
 #define PLAYER_HPP
 
+#include <atomic>
+#include <thread>
+
 #include "AudioDecoder.hpp"
 #include "MediaFile.hpp"
 #include "VideoDecoder.hpp"
-
-#include <thread>
-#include <atomic>
 
 class Player {
  public:

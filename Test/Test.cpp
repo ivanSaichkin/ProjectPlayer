@@ -1,6 +1,7 @@
-#include "SFML/Graphics.hpp"
-#include "../VideoPlayer/include/Player.hpp"
 #include <iostream>
+
+#include "../VideoPlayer/include/Player.hpp"
+#include "SFML/Graphics.hpp"
 
 int main(int argc, char* argv[]) {
     // Initialize FFmpeg
@@ -45,7 +46,7 @@ int main(int argc, char* argv[]) {
                             window.close();
                             break;
                         case sf::Keyboard::Left:
-                            player.Seek(-10); // Seek 10 seconds backward
+                            player.Seek(-10);  // Seek 10 seconds backward
                             break;
                         case sf::Keyboard::Right:
                             player.Seek(10);  // Seek 10 seconds forward
@@ -61,8 +62,6 @@ int main(int argc, char* argv[]) {
 
             // Draw video frame
             player.Draw(window);
-
-
 
             // Display window
             window.display();
