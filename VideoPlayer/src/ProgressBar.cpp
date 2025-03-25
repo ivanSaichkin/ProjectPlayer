@@ -16,7 +16,7 @@ ProgressBar::ProgressBar(const sf::Vector2f& position, const sf::Vector2f& size,
     thumb.setOrigin(thumb.getRadius(), thumb.getRadius()); // Центрируем бегунок
 
     // Устанавливаем начальную позицию бегунка
-    updateThumbPosition(0.0f);
+    updateThumbPosition(position);
 
     // Устанавливаем размер и позицию для базового класса Button
     setPosition(position);
@@ -28,31 +28,21 @@ void ProgressBar::draw(sf::RenderWindow& window) const {
     window.draw(thumb); // Рисуем бегунок
 }
 
-// здесь надо связывать с декодированием уже
-void ProgressBar::updateThumbPosition(float progress) {
-    // Ограничиваем прогресс в пределах [0.0, 1.0]
-    progress = std::max(0.0f, std::min(1.0f, progress));
-
-    // Вычисляем новую позицию бегунка
-    float thumbX = track.getPosition().x + (track.getSize().x - 2 * thumb.getRadius()) * progress;
-    float thumbY = track.getPosition().y + track.getSize().y / 2.0f; // Центрируем по вертикали
-    thumb.setPosition(thumbX, thumbY);
-
-    // Вызываем callback, если он установлен
-    if (onClickCallback) {
-        onClickCallback(progress);
-    }
-}
-
 void ProgressBar::onClick(std::function<void(float)> callback) {
     onClickCallback = callback; // Сохраняем callback (а надо ли его ваще использовать??)
 }
 
-bool ProgressBar::isMouseOver(const sf::RenderWindow& window) const {
+bool ProgressBar::isMouseOverThumb(const sf::RenderWindow& window) const {
     sf::Vector2f mousePos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
     // Проверяем, находится ли курсор над бегунком (кругом)
     float distanceSquared = std::pow(mousePos.x - thumb.getPosition().x, 2) + std::pow(mousePos.y - thumb.getPosition().y, 2);
     return distanceSquared <= std::pow(thumb.getRadius(), 2);
+}
+
+bool ProgressBar::isMouseOverTrack(const sf::RenderWindow& window) const {
+    sf::Vector2f mousePos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+    sf::FloatRect bounds = track.getGlobalBounds();
+    return bounds.contains(mousePos);
 }
 
 void ProgressBar::changePosition(const sf::Vector2f& position) {
@@ -68,6 +58,20 @@ void ProgressBar::setTrackColor(const sf::Color& color) {
     track.setFillColor(color);
 }
 
+const sf::CircleShape& ProgressBar::getThumb() const {
+    return thumb;
+}
+
+const sf::RectangleShape& ProgressBar::getTrack() const {
+    return track;
+}
+
+void ProgressBar::updateThumbPosition(const sf::Vector2f& position) {
+    float thumbX = position.x;
+    float thumbY = position.y; // перемещение ползунка по Оy (можно поменять на track.getPosition().y)
+    thumb.setPosition(thumbX, thumbY);
+}
+
 bool ProgressBar::isThumbClicked(const sf::RenderWindow& window) const {
     // Проверяем, находится ли курсор мыши над бегунком
     if (isMouseOver(window)) {
@@ -76,3 +80,43 @@ bool ProgressBar::isThumbClicked(const sf::RenderWindow& window) const {
     }
     return false;
 }
+
+
+bool ProgressBar::isTrackClicked(const sf::RenderWindow& window) const {
+    if (isMouseOverTrack(window)) {
+    return sf::Mouse::isButtonPressed(sf::Mouse::Left);
+    }
+    return false;
+}
+
+void ProgressBar::updateThumbFromMouse(const sf::RenderWindow& window) {
+        if (!isDragging) return;
+
+        // Получаем текущую позицию мыши
+        sf::Vector2f mousePos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+
+        // Рассчитываем границы для ползунка
+        float minX = track.getPosition().x + thumb.getRadius();
+        float maxX = track.getPosition().x + track.getSize().x - thumb.getRadius();
+
+        // Ограничиваем позицию мыши границами трека
+        float thumbX = std::clamp(mousePos.x, minX, maxX);
+
+        // Устанавливаем новую позицию ползунка
+        thumb.setPosition(thumbX, track.getPosition().y + track.getSize().y / 2.f);
+
+        // Обновляем прогресс (0..1) на основе новой позиции
+        progress = (thumbX - minX) / (maxX - minX);
+ }
+
+void ProgressBar::startDragging() {
+     isDragging = true;
+    }
+
+void ProgressBar::stopDragging() {
+    isDragging = false;
+ }
+
+bool ProgressBar::getIsDragging() const {
+    return isDragging;
+ }

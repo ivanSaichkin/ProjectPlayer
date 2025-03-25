@@ -62,13 +62,20 @@ int main() {
     от положения курсора мышки (и возможность перемотки нажатием в т.ч.)
     */
 
+    float progress = 0.f;
     if (progressBar.isThumbClicked(window)) {
       progressBar.setThumbColor(sf::Color(146, 208, 231)); // мб цвета в структуру/класс поместить, чтобы не путаться
-      // ...
+      sf::Vector2f mousePos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
     }
+
     else {
       progressBar.setThumbColor(sf::Color(26, 181, 239));
     }
+
+     if (progressBar.isTrackClicked(window)) {
+      sf::Vector2f mousePos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+        progressBar.updateThumbPosition(mousePos);
+     }
 
   }
   // конец основного цикла
