@@ -15,6 +15,7 @@ add_executable(VideoPlayer
     ${CMAKE_CURRENT_SOURCE_DIR}/VideoPlayer/src/AudioDecoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/VideoPlayer/src/Player.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/VideoPlayer/src/Decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Window/src/Window.cpp
 )
 
 

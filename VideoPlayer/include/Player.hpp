@@ -7,6 +7,7 @@
 #include "AudioDecoder.hpp"
 #include "MediaFile.hpp"
 #include "VideoDecoder.hpp"
+#include "../../Window/include/Window.hpp"
 
 class Player {
  public:
@@ -15,12 +16,14 @@ class Player {
     void Play();
     void TogglePause();
     void Stop();
-    void Draw(sf::RenderWindow& window);
+    void Draw(Window& window);
     void Seek(int seconds);
     void SetVolume(float volume);
     double GetDuration() const;
     double GetCurrentTime() const;
     float GetVolume() const;
+
+    sf::Vector2i GetVideoSize() const;
 
  private:
     void PlaybackLoop();

@@ -283,3 +283,14 @@ void VideoDecoder::DecodeVideo() {
     av_frame_free(&frame);
     isRunning_ = false;
 }
+
+sf::Sprite& VideoDecoder::GetSprite() {
+    return sprite_;
+}
+
+sf::Vector2i VideoDecoder::GetSize() const {
+    if (videoCodecContext_) {
+        return sf::Vector2i(videoCodecContext_->width, videoCodecContext_->height);
+    }
+    return sf::Vector2i(0, 0);
+}

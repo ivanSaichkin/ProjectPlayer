@@ -18,6 +18,9 @@ class VideoDecoder : public Decoder {
     void ProcessPacket(AVPacket* packet) override;
     void SignalEndOfStream() override;
 
+    sf::Sprite& GetSprite();
+    sf::Vector2i GetSize() const;
+
  private:
     void DecodeVideo();
     void ProcessVideoFrame(AVFrame* frame);

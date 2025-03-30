@@ -153,9 +153,15 @@ void Player::Stop() {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
-void Player::Draw(sf::RenderWindow& window) {
+void Player::Draw(Window& window) {
     if (videoDecoder_) {
-        videoDecoder_->Draw(window);
+        sf::Sprite& sprite = videoDecoder_->GetSprite();
+
+        // Масштабируем спрайт под размер окна с сохранением пропорций
+        window.ScaleSprite(sprite, true);
+
+        // Отрисовываем видеокадр
+        window.GetRenderWindow().draw(sprite);
     }
 }
 
@@ -236,4 +242,11 @@ float Player::GetVolume() const {
         return audioDecoder_->GetVolume();
     }
     return 0.0f;
+}
+
+sf::Vector2i Player::GetVideoSize() const {
+    if (videoDecoder_) {
+        return videoDecoder_->GetSize();
+    }
+    return sf::Vector2i(0, 0);
 }
