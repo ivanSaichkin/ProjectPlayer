@@ -79,12 +79,11 @@ void AudioDecoder::Start() {
 }
 
 void AudioDecoder::Flush() {
-    endOfStream_ = false;
     if (audioCodecContext_) {
         avcodec_flush_buffers(audioCodecContext_);
     }
 
-    // Clear packet queue
+    // Очищаем очередь пакетов
     {
         std::lock_guard<std::mutex> lock(queueMutex_);
         while (!packetQueue_.empty()) {
@@ -94,10 +93,11 @@ void AudioDecoder::Flush() {
         }
     }
 
+    std::lock_guard<std::mutex> lock(mutex_);
     audioBuffer_.clear();
+
     endOfStream_ = false;
 
-    // Stop current sound
     sound_.stop();
 }
 

@@ -96,12 +96,11 @@ void VideoDecoder::Start() {
 }
 
 void VideoDecoder::Flush() {
-    endOfStream_ = false;
     if (videoCodecContext_) {
         avcodec_flush_buffers(videoCodecContext_);
     }
 
-    // Clear packet queue
+    // Очищаем очередь пакетов
     {
         std::lock_guard<std::mutex> lock(queueMutex_);
         while (!packetQueue_.empty()) {
@@ -112,6 +111,13 @@ void VideoDecoder::Flush() {
     }
 
     endOfStream_ = false;
+
+    // Сбрасываем внутреннее состояние
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    sf::Vector2u textureSize = texture_.getSize();
+    std::vector<sf::Uint8> blackPixels(textureSize.x * textureSize.y * 4, 0);
+    texture_.update(blackPixels.data());
 }
 
 void VideoDecoder::Draw(sf::RenderWindow& window) {
