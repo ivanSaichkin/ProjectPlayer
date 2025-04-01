@@ -68,7 +68,7 @@ const sf::RectangleShape& ProgressBar::getTrack() const {
 
 void ProgressBar::updateThumbPosition(const sf::Vector2f& position) {
     float thumbX = position.x;
-    float thumbY = position.y; // перемещение ползунка по Оy (можно поменять на track.getPosition().y)
+    float thumbY = track.getPosition().y + 5; // перемещение ползунка по Оy (можно поменять на track.getPosition().y)
     thumb.setPosition(thumbX, thumbY);
 }
 
@@ -120,3 +120,14 @@ void ProgressBar::stopDragging() {
 bool ProgressBar::getIsDragging() const {
     return isDragging;
  }
+
+
+ /*
+  План по прогресс бару:
+ 1. Разделить его длину на несколько частей
+ 2. Получить из "ВидеоДекодера" длительность конкретного видео
+ 3. Разделить длительность видео на то же количество частей, что и длину прогрессбара
+ 4. Каждый раз по прохождении видеоматриалом n-й части длительности самого видео,
+  сдвигать ползунок на соответствующее количество частей
+ 5. Связать положение ползунка длительностью видео (прогрессом)
+*/

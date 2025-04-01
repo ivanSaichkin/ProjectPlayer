@@ -18,7 +18,6 @@ int main() {
   sf::RenderWindow window(sf::VideoMode(600, 400), L"Новый проект",
                           sf::Style::Default);
   window.setVerticalSyncEnabled(true);   // включаем вертикальную синхронизацию (пока что так)
-  window.clear(sf::Color::Black);
 
   // старт основного цикла
   while (window.isOpen()) {
@@ -33,7 +32,7 @@ int main() {
     // states.blendMode = sf::BlendAlpha; хз надо ли
 
     // Отрисовываем knopki
-    window.clear();
+    window.clear(sf::Color(79, 95, 102));
     playButton.draw(window);
     pauseButton.draw(window);
     progressBar.draw(window);
