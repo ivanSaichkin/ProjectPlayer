@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "/opt/homebrew/Cellar/sfml@2/2.6.2_1/include"
+            ],
+            "defines": [],
+            "macFrameworkPath": [
+                "/opt/homebrew/Cellar/sfml@2/2.6.2_1/include"
+            ],
+            "compilerPath": "/opt/homebrew/opt/llvm/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++17", // Убедитесь, что эта строка добавлена для C++
+            "intelliSenseMode": "macos-clang-arm64"
+        }
+    ],
+    "version": 4
+}

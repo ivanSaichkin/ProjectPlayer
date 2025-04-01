@@ -1,0 +1,27 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "clang++",
+            "args": [
+                "-std=c++17",
+                "-o",
+                "main",
+                "main.cpp",
+                "-I/opt/homebrew/Cellar/sfml@2/2.6.2_1/include", // Путь к заголовочным файлам
+                "-L/opt/homebrew/Cellar/sfml@2/2.6.2_1/lib",     // Путь к библиотекам
+                "-lsfml-graphics",
+                "-lsfml-window",
+                "-lsfml-system"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "detail": "Сборка проекта с SFML"
+        }
+    ]
+}
