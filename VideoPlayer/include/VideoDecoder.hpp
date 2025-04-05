@@ -21,6 +21,9 @@ class VideoDecoder : public Decoder {
     sf::Sprite& GetSprite();
     sf::Vector2i GetSize() const;
 
+    bool HasFrame() const;
+    void SetPreloadMode(bool preload);
+
  private:
     void DecodeVideo();
     void ProcessVideoFrame(AVFrame* frame);
@@ -31,6 +34,8 @@ class VideoDecoder : public Decoder {
     sf::Texture texture_;
     sf::Sprite sprite_;
     MediaFile mediaFile_;
+    std::atomic<bool> hasFrame_;
+    std::atomic<bool> preloadMode_;
 };
 
 class VideoDecoderError : public std::runtime_error {

@@ -7,6 +7,8 @@ VideoDecoder::VideoDecoder(const MediaFile& mediaFile)
     isRunning_ = false;
     isPaused_ = false;
     endOfStream_ = false;
+    hasFrame_ = false;
+    preloadMode_ = false;
 
     int videoStreamIndex = mediaFile_.GetVideoStreamIndex();
     if (videoStreamIndex < 0) {
@@ -96,6 +98,7 @@ void VideoDecoder::Start() {
 }
 
 void VideoDecoder::Flush() {
+    // Очищаем буферы кодека
     if (videoCodecContext_) {
         avcodec_flush_buffers(videoCodecContext_);
     }
@@ -112,12 +115,8 @@ void VideoDecoder::Flush() {
 
     endOfStream_ = false;
 
-    // Сбрасываем внутреннее состояние
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    sf::Vector2u textureSize = texture_.getSize();
-    std::vector<sf::Uint8> blackPixels(textureSize.x * textureSize.y * 4, 0);
-    texture_.update(blackPixels.data());
+    // Не сбрасываем hasFrame_, чтобы сохранить последний кадр
+    // для отображения во время перемотки
 }
 
 void VideoDecoder::Draw(sf::RenderWindow& window) {
@@ -158,74 +157,102 @@ void VideoDecoder::SignalEndOfStream() {
 }
 
 void VideoDecoder::ProcessVideoFrame(AVFrame* frame) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Если нет контекста для преобразования, создаем его
+    if (!swsContext_) {
+        swsContext_ = sws_getContext(
+            frame->width, frame->height, (AVPixelFormat)frame->format,
+            frame->width, frame->height, AV_PIX_FMT_RGBA,
+            SWS_BILINEAR, nullptr, nullptr, nullptr
+        );
+
+        if (!swsContext_) {
+            std::cerr << "Не удалось создать контекст для преобразования изображения" << std::endl;
+            return;
+        }
+    }
+
+    // Вычисляем время отображения кадра
     double pts = frame->pts * mediaFile_.GetVideoTimeBase();
 
-    // Allocate RGBA frame
-    AVFrame* rgbaFrame = av_frame_alloc();
-    if (!rgbaFrame) {
-        std::cerr << "Could not allocate RGBA frame" << std::endl;
-        return;
-    }
+    // В режиме предварительной загрузки не проверяем время
+    if (!preloadMode_) {
+        // Вычисляем текущее время воспроизведения
+        auto now = std::chrono::steady_clock::now();
+        double currentTime = std::chrono::duration<double>(now - startTime_).count();
 
-    // Allocate buffer for RGBA frame
-    int bufferSize = av_image_get_buffer_size(AV_PIX_FMT_RGBA, videoCodecContext_->width, videoCodecContext_->height, 1);
-
-    uint8_t* buffer = (uint8_t*)av_malloc(bufferSize);
-    if (!buffer) {
-        std::cerr << "Could not allocate buffer for RGBA frame" << std::endl;
-        av_frame_free(&rgbaFrame);
-        return;
-    }
-
-    av_image_fill_arrays(rgbaFrame->data, rgbaFrame->linesize, buffer, AV_PIX_FMT_RGBA, videoCodecContext_->width, videoCodecContext_->height, 1);
-
-    // Convert frame to RGBA
-    sws_scale(swsContext_, frame->data, frame->linesize, 0, videoCodecContext_->height, rgbaFrame->data, rgbaFrame->linesize);
-
-    // Wait for the correct time to display this frame
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-
-        auto currentTime = std::chrono::steady_clock::now();
-        double elapsed = std::chrono::duration<double>(currentTime - startTime_).count();
-
-        if (pts > elapsed) {
-            std::this_thread::sleep_for(std::chrono::duration<double>(pts - elapsed));
+        // Если кадр еще не должен быть показан, и это не единственный кадр, выходим
+        if (pts > currentTime + 0.1 && hasFrame_) {
+            return;
         }
 
-        // Update texture with new frame
-        texture_.update(rgbaFrame->data[0]);
+        // Если кадр уже должен был быть показан давно, и у нас есть более новые кадры, выходим
+        if (pts < currentTime - 0.5 && hasFrame_) {
+            return;
+        }
     }
 
-    // Clean up
-    av_free(buffer);
-    av_frame_free(&rgbaFrame);
+    // Преобразуем кадр в RGBA формат
+    uint8_t* data[4] = {nullptr};
+    int linesize[4] = {0};
+
+    // Вычисляем размер буфера для RGBA данных
+    int bufferSize = av_image_get_buffer_size(AV_PIX_FMT_RGBA, frame->width, frame->height, 1);
+    std::vector<uint8_t> buffer(bufferSize);
+
+    // Настраиваем указатели на буфер
+    av_image_fill_arrays(data, linesize, buffer.data(), AV_PIX_FMT_RGBA, frame->width, frame->height, 1);
+
+    // Выполняем преобразование
+    sws_scale(swsContext_, frame->data, frame->linesize, 0, frame->height, data, linesize);
+
+    // Обновляем текстуру
+    texture_.update(buffer.data());
+
+    // Устанавливаем флаг наличия кадра
+    hasFrame_ = true;
 }
 
 void VideoDecoder::DecodeVideo() {
     AVFrame* frame = av_frame_alloc();
     if (!frame) {
-        std::cerr << "Could not allocate frame" << std::endl;
+        std::cerr << "Не удалось выделить память для кадра" << std::endl;
         return;
     }
 
+    // Флаг, указывающий, получили ли мы хотя бы один кадр
+    bool receivedFirstFrame = false;
+
     while (isRunning_) {
-        // Wait if paused
-        while (isPaused_ && isRunning_) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // Обрабатываем состояние паузы только после получения первого кадра
+        if (receivedFirstFrame) {
+            while (isPaused_ && isRunning_) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
         }
 
         if (!isRunning_) {
             break;
         }
 
-        // Get packet from queue
+        // Получаем пакет из очереди
         AVPacket* packet = nullptr;
         bool gotPacket = false;
 
         {
             std::unique_lock<std::mutex> lock(queueMutex_);
-            packetCondition_.wait(lock, [this] { return !packetQueue_.empty() || endOfStream_ || !isRunning_; });
+
+            // При перемотке или в начале воспроизведения не ждем слишком долго
+            if (!receivedFirstFrame) {
+                packetCondition_.wait_for(lock, std::chrono::milliseconds(100), [this] {
+                    return !packetQueue_.empty() || endOfStream_ || !isRunning_;
+                });
+            } else {
+                packetCondition_.wait(lock, [this] {
+                    return !packetQueue_.empty() || endOfStream_ || !isRunning_;
+                });
+            }
 
             if (!isRunning_) {
                 break;
@@ -238,32 +265,41 @@ void VideoDecoder::DecodeVideo() {
             }
         }
 
-        // Process packet
+        // Обрабатываем пакет
         if (gotPacket) {
             int response = avcodec_send_packet(videoCodecContext_, packet);
             av_packet_free(&packet);
 
             if (response < 0) {
-                std::cerr << "Error sending packet for decoding" << std::endl;
+                std::cerr << "Ошибка при отправке пакета для декодирования" << std::endl;
                 continue;
             }
 
-            // Receive frames
+            // Получаем кадры
+            bool gotFrame = false;
             while (response >= 0) {
                 response = avcodec_receive_frame(videoCodecContext_, frame);
 
                 if (response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
                     break;
                 } else if (response < 0) {
-                    std::cerr << "Error during decoding" << std::endl;
+                    std::cerr << "Ошибка при декодировании видео" << std::endl;
                     break;
                 }
 
-                // Process the frame
+                // Обрабатываем кадр
                 ProcessVideoFrame(frame);
+                gotFrame = true;
+                receivedFirstFrame = true;
             }
-        } else if (endOfStream_) {
-            // Flush the decoder
+
+            // Если это первый кадр после перемотки, не ждем паузы
+            if (gotFrame && !receivedFirstFrame) {
+                receivedFirstFrame = true;
+            }
+        }
+        else if (endOfStream_) {
+            // Очищаем декодер
             avcodec_send_packet(videoCodecContext_, nullptr);
 
             while (true) {
@@ -271,18 +307,22 @@ void VideoDecoder::DecodeVideo() {
                 if (response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
                     break;
                 } else if (response < 0) {
-                    std::cerr << "Error during flushing" << std::endl;
+                    std::cerr << "Ошибка при очистке декодера" << std::endl;
                     break;
                 }
 
-                // Process the frame
+                // Обрабатываем кадр
                 ProcessVideoFrame(frame);
             }
 
-            // Exit the loop when all frames are processed
+            // Выходим из цикла, когда все кадры обработаны
             if (packetQueue_.empty()) {
                 break;
             }
+        }
+        // Если очередь пуста и мы не получили первый кадр, ждем немного
+        else if (!receivedFirstFrame) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
 
@@ -299,4 +339,12 @@ sf::Vector2i VideoDecoder::GetSize() const {
         return sf::Vector2i(videoCodecContext_->width, videoCodecContext_->height);
     }
     return sf::Vector2i(0, 0);
+}
+
+bool VideoDecoder::HasFrame() const {
+    return hasFrame_;
+}
+
+void VideoDecoder::SetPreloadMode(bool preload) {
+    preloadMode_ = preload;
 }
