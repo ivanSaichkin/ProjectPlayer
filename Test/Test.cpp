@@ -8,6 +8,7 @@
 #include "../VideoPlayer/include/Player.hpp"
 #include "../Window/include/Window.hpp"
 
+// Функция для форматирования времени
 std::string formatTime(double seconds) {
     int totalSeconds = static_cast<int>(seconds);
     int minutes = totalSeconds / 60;
@@ -19,166 +20,133 @@ std::string formatTime(double seconds) {
     return ss.str();
 }
 
-// Функция для отображения инструкций
-void showInstructions(Window& window, sf::Font& font) {
-    sf::Text text;
-    text.setFont(font);
-    text.setCharacterSize(16);
-    text.setFillColor(sf::Color::White);
+// Тестирование всех функций плеера
+void testPlayer(Player& player, const std::string& filename) {
+    std::cout << "\n==== НАЧАЛО ТЕСТИРОВАНИЯ ПЛЕЕРА ====\n" << std::endl;
 
-    std::string instructions =
-        "Управление:\n"
-        "Пробел - пауза/воспроизведение\n"
-        "Стрелки влево/вправо - перемотка на 10 секунд\n"
-        "Стрелки вверх/вниз - регулировка громкости\n"
-        "F - полноэкранный режим\n"
-        "Escape - выход";
+    // Тест 1: Загрузка файла
+    std::cout << "Тест 1: Загрузка файла" << std::endl;
+    std::cout << "Загрузка: " << filename << std::endl;
+    player.Load(filename);
+    std::cout << "Длительность видео: " << player.GetDuration() << " секунд" << std::endl;
+    std::cout << "Текущее время после загрузки: " << player.GetCurrentTime() << " секунд" << std::endl;
+    std::cout << "Размер видео: " << player.GetVideoSize().x << "x" << player.GetVideoSize().y << std::endl;
+    std::cout << "Тест 1 пройден: " << (player.GetCurrentTime() < 1.0 ? "УСПЕШНО" : "ОШИБКА") << "\n" << std::endl;
 
-    text.setString(instructions);
-
-    // Создаем полупрозрачный фон
-    sf::RectangleShape background;
-    background.setSize(sf::Vector2f(text.getLocalBounds().width + 20, text.getLocalBounds().height + 30));
-    background.setFillColor(sf::Color(0, 0, 0, 200));
-    background.setPosition(10, 40);
-
-    text.setPosition(20, 50);
-
-    window.GetRenderWindow().draw(background);
-    window.GetRenderWindow().draw(text);
-}
-
-// Функция для тестирования всех функций плеера
-void testPlayer(Player& player, Window& window, sf::Font& font) {
-    std::cout << "Тестирование плеера..." << std::endl;
-
-    // Тест 1: Воспроизведение
-    std::cout << "Тест 1: Воспроизведение" << std::endl;
+    // Тест 2: Воспроизведение
+    std::cout << "Тест 2: Воспроизведение" << std::endl;
     player.Play();
+    std::cout << "Началось воспроизведение" << std::endl;
 
     // Ждем 3 секунды для проверки воспроизведения
     for (int i = 0; i < 3; i++) {
-        std::cout << "Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::cout << "Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
     }
 
-    // Тест 2: Пауза
-    std::cout << "\nТест 2: Пауза" << std::endl;
+    double timeAfterPlay = player.GetCurrentTime();
+    std::cout << "Тест 2 пройден: " << (timeAfterPlay > 1.0 ? "УСПЕШНО" : "ОШИБКА") << "\n" << std::endl;
+
+    // Тест 3: Пауза
+    std::cout << "Тест 3: Пауза" << std::endl;
     player.TogglePause();
-    std::cout << "Воспроизведение на паузе. Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
+    double timeBeforePause = player.GetCurrentTime();
+    std::cout << "Воспроизведение на паузе. Текущее время: " << timeBeforePause << " секунд" << std::endl;
 
     // Ждем 2 секунды в режиме паузы
     std::this_thread::sleep_for(std::chrono::seconds(2));
-    std::cout << "После 2 секунд паузы. Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
+    double timeAfterPause = player.GetCurrentTime();
+    std::cout << "После 2 секунд паузы. Текущее время: " << timeAfterPause << " секунд" << std::endl;
 
-    // Тест 3: Возобновление
-    std::cout << "\nТест 3: Возобновление" << std::endl;
+    std::cout << "Тест 3 пройден: " << (std::abs(timeAfterPause - timeBeforePause) < 0.1 ? "УСПЕШНО" : "ОШИБКА") << "\n" << std::endl;
+
+    // Тест 4: Возобновление
+    std::cout << "Тест 4: Возобновление" << std::endl;
     player.TogglePause();
     std::cout << "Воспроизведение возобновлено" << std::endl;
 
     // Ждем 2 секунды для проверки возобновления
     for (int i = 0; i < 2; i++) {
-        std::cout << "Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::cout << "Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
     }
 
-    // Тест 4: Регулировка громкости
-    std::cout << "\nТест 4: Регулировка громкости" << std::endl;
-    std::cout << "Исходная громкость: " << player.GetVolume() << "%" << std::endl;
-    player.SetVolume(75.0f);
-    std::cout << "Новая громкость: " << player.GetVolume() << "%" << std::endl;
+    double timeAfterResume = player.GetCurrentTime();
+    std::cout << "Тест 4 пройден: " << (timeAfterResume > timeAfterPause ? "УСПЕШНО" : "ОШИБКА") << "\n" << std::endl;
 
-    // Тест 5: Перемотка вперед
-    std::cout << "\nТест 5: Перемотка вперед" << std::endl;
+    // Тест 5: Регулировка громкости
+    std::cout << "Тест 5: Регулировка громкости" << std::endl;
+    float initialVolume = player.GetVolume();
+    std::cout << "Исходная громкость: " << initialVolume << "%" << std::endl;
+
+    player.SetVolume(75.0f);
+    float newVolume = player.GetVolume();
+    std::cout << "Новая громкость: " << newVolume << "%" << std::endl;
+
+    std::cout << "Тест 5 пройден: " << (std::abs(newVolume - 75.0f) < 0.1 ? "УСПЕШНО" : "ОШИБКА") << "\n" << std::endl;
+
+    // Тест 6: Перемотка вперед
+    std::cout << "Тест 6: Перемотка вперед" << std::endl;
     double timeBefore = player.GetCurrentTime();
     std::cout << "Текущее время перед перемоткой: " << timeBefore << " секунд" << std::endl;
-    player.Seek(20);
+
+    player.Seek(10);
     std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Ждем, пока перемотка выполнится
+
     double timeAfter = player.GetCurrentTime();
     std::cout << "Текущее время после перемотки: " << timeAfter << " секунд" << std::endl;
     std::cout << "Разница: " << (timeAfter - timeBefore) << " секунд" << std::endl;
 
-    // Ждем 3 секунды для проверки воспроизведения после перемотки вперед
-    for (int i = 0; i < 3; i++) {
-        std::cout << "Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
+    std::cout << "Тест 6 пройден: " << (timeAfter > timeBefore + 8.0 ? "УСПЕШНО" : "ОШИБКА") << "\n" << std::endl;
+
+    // Ждем 2 секунды для проверки воспроизведения после перемотки вперед
+    for (int i = 0; i < 2; i++) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::cout << "Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
     }
 
-    // Тест 6: Перемотка назад
-    std::cout << "\nТест 6: Перемотка назад" << std::endl;
+    // Тест 7: Перемотка назад
+    std::cout << "Тест 7: Перемотка назад" << std::endl;
     timeBefore = player.GetCurrentTime();
     std::cout << "Текущее время перед перемоткой: " << timeBefore << " секунд" << std::endl;
-    player.Seek(-10);
+
+    player.Seek(-5);
     std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Ждем, пока перемотка выполнится
+
     timeAfter = player.GetCurrentTime();
     std::cout << "Текущее время после перемотки: " << timeAfter << " секунд" << std::endl;
     std::cout << "Разница: " << (timeAfter - timeBefore) << " секунд" << std::endl;
 
-    // Тест 7: Остановка
-    std::cout << "\nТест 7: Остановка" << std::endl;
+    std::cout << "Тест 7 пройден: " << (timeAfter < timeBefore - 3.0 ? "УСПЕШНО" : "ОШИБКА") << "\n" << std::endl;
+
+    // Тест 8: Остановка
+    std::cout << "Тест 8: Остановка" << std::endl;
     player.Stop();
     std::cout << "Воспроизведение остановлено. Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
 
-    // Тест 8: Повторное воспроизведение
-    std::cout << "\nТест 8: Повторное воспроизведение" << std::endl;
+    std::cout << "Тест 8 пройден: " << (player.GetCurrentTime() < 1.0 ? "УСПЕШНО" : "ОШИБКА") << "\n" << std::endl;
+
+    // Тест 9: Повторное воспроизведение
+    std::cout << "Тест 9: Повторное воспроизведение" << std::endl;
     player.Play();
     std::cout << "Воспроизведение запущено снова" << std::endl;
 
     // Ждем 2 секунды для проверки повторного воспроизведения
     for (int i = 0; i < 2; i++) {
-        std::cout << "Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::cout << "Текущее время: " << player.GetCurrentTime() << " секунд" << std::endl;
     }
 
-    std::cout << "\nТестирование завершено!" << std::endl;
+    double finalTime = player.GetCurrentTime();
+    std::cout << "Тест 9 пройден: " << (finalTime > 1.0 ? "УСПЕШНО" : "ОШИБКА") << "\n" << std::endl;
 
-    // Отображаем результаты тестирования
-    sf::Text resultText;
-    resultText.setFont(font);
-    resultText.setCharacterSize(20);
-    resultText.setFillColor(sf::Color::Green);
-    resultText.setString("Тестирование завершено успешно!");
-    resultText.setPosition(
-        (window.GetSize().x - resultText.getLocalBounds().width) / 2.0f,
-        window.GetSize().y - 100
-    );
-
-    sf::RectangleShape resultBackground;
-    resultBackground.setSize(sf::Vector2f(resultText.getLocalBounds().width + 20, 40));
-    resultBackground.setFillColor(sf::Color(0, 0, 0, 200));
-    resultBackground.setPosition(
-        resultText.getPosition().x - 10,
-        resultText.getPosition().y - 10
-    );
-
-    window.GetRenderWindow().draw(resultBackground);
-    window.GetRenderWindow().draw(resultText);
-    window.Display();
-
-    // Ждем 3 секунды для отображения результата
-    std::this_thread::sleep_for(std::chrono::seconds(3));
+    std::cout << "==== ТЕСТИРОВАНИЕ ЗАВЕРШЕНО ====\n" << std::endl;
 }
 
-int main(int argc, char* argv[]) {
+// Основная функция тестирования с графическим интерфейсом
+void runGraphicalTest(const std::string& filename) {
     // Инициализация FFmpeg
     av_log_set_level(AV_LOG_QUIET);
-
-    std::string filename;
-    bool autoTest = false;
-
-    // Обработка аргументов командной строки
-    if (argc > 1) {
-        filename = argv[1];
-
-        // Проверяем флаг автоматического тестирования
-        if (argc > 2 && std::string(argv[2]) == "--test") {
-            autoTest = true;
-        }
-    } else {
-        std::cerr << "Использование: " << argv[0] << " <видеофайл> [--test]" << std::endl;
-        std::cerr << "Пример: " << argv[0] << " sample.mp4" << std::endl;
-        return 1;
-    }
 
     // Создаем плеер
     Player player;
@@ -192,98 +160,65 @@ int main(int argc, char* argv[]) {
         sf::Vector2i videoSize = player.GetVideoSize();
         std::cout << "Размер видео: " << videoSize.x << "x" << videoSize.y << std::endl;
 
-        // Если видео слишком большое, ограничиваем размер окна
-        sf::VideoMode desktopMode = sf::VideoMode::getDesktopMode();
-        int maxWidth = static_cast<int>(desktopMode.width * 0.9);
-        int maxHeight = static_cast<int>(desktopMode.height * 0.9);
-
-        int windowWidth = videoSize.x;
-        int windowHeight = videoSize.y;
-
-        // Если видео больше экрана, масштабируем окно
-        if (windowWidth > maxWidth || windowHeight > maxHeight) {
-            float scaleX = static_cast<float>(maxWidth) / windowWidth;
-            float scaleY = static_cast<float>(maxHeight) / windowHeight;
-            float scale = std::min(scaleX, scaleY);
-
-            windowWidth = static_cast<int>(windowWidth * scale);
-            windowHeight = static_cast<int>(windowHeight * scale);
-        }
-
-        // Минимальный размер окна
-        windowWidth = std::max(windowWidth, 640);
-        windowHeight = std::max(windowHeight, 480);
+        // Определяем размер окна
+        int windowWidth = std::max(videoSize.x, 640);
+        int windowHeight = std::max(videoSize.y, 480);
 
         // Создаем окно
-        std::cout << "Создание окна размером " << windowWidth << "x" << windowHeight << std::endl;
-        Window window(windowWidth, windowHeight, "Видеоплеер - " + filename);
+        Window window(windowWidth, windowHeight, "Тестирование видеоплеера - " + filename);
         if (!window.Open()) {
             std::cerr << "Не удалось создать окно" << std::endl;
-            return 1;
+            return;
         }
 
-        // Устанавливаем начальную громкость
+        // Устанавливаем громкость
         player.SetVolume(50.0f);
 
-        // Устанавливаем обработчик изменения размера окна
-        window.SetResizeCallback([&player](int width, int height) {
-            std::cout << "Размер окна изменен на " << width << "x" << height << std::endl;
-        });
-
-        // Устанавливаем обработчик закрытия окна
-        window.SetCloseCallback([&player]() {
-            player.Stop();
-        });
-
-        // Загружаем шрифт для отображения информации
+        // Загружаем шрифт
         sf::Font font;
-        bool fontLoaded = false;
+        bool fontLoaded = font.loadFromFile("Arial.ttf");
 
-        // Пробуем загрузить шрифт из нескольких возможных мест
-        std::vector<std::string> fontPaths = {
-            "Arial.ttf"
-        };
-
-        for (const auto& path : fontPaths) {
-            if (font.loadFromFile(path)) {
-                fontLoaded = true;
-                std::cout << "Шрифт загружен: " << path << std::endl;
-                break;
-            }
-        }
-
-        // Если не удалось загрузить шрифт, предупреждаем
         if (!fontLoaded) {
-            std::cerr << "Не удалось загрузить шрифт. Информация о воспроизведении не будет отображаться." << std::endl;
+            std::cerr << "Не удалось загрузить шрифт" << std::endl;
         }
 
         // Создаем текст для отображения информации
-        sf::Text timeText;
+        sf::Text infoText;
         if (fontLoaded) {
-            timeText.setFont(font);
-            timeText.setCharacterSize(20);
-            timeText.setFillColor(sf::Color::White);
-            timeText.setOutlineColor(sf::Color::Black);
-            timeText.setOutlineThickness(1.0f);
-            timeText.setPosition(10, 10);
+            infoText.setFont(font);
+            infoText.setCharacterSize(18);
+            infoText.setFillColor(sf::Color::White);
+            infoText.setPosition(10, 10);
+        }
+
+        // Создаем текст для инструкций
+        sf::Text instructionsText;
+        if (fontLoaded) {
+            instructionsText.setFont(font);
+            instructionsText.setCharacterSize(16);
+            instructionsText.setFillColor(sf::Color::White);
+            instructionsText.setPosition(10, window.GetSize().y - 150);
+
+            instructionsText.setString(
+                "ТЕСТОВЫЙ РЕЖИМ\n"
+                "Space: Пауза/Воспроизведение\n"
+                "Left/Right: Перемотка -/+ 10 сек\n"
+                "Up/Down: Громкость +/-\n"
+                "F: Полный экран\n"
+                "Esc: Выход"
+            );
         }
 
         // Начинаем воспроизведение
-        std::cout << "Начало воспроизведения" << std::endl;
         player.Play();
 
-        // Если включен режим автоматического тестирования
-        if (autoTest && fontLoaded) {
-            testPlayer(player, window, font);
-        }
-
         // Главный цикл
+        sf::Clock clock;
+        bool showDebugInfo = true;
+
         while (window.IsOpen()) {
             sf::Event event;
             while (window.PollEvent(event)) {
-                // События обрабатываются в Window::PollEvent
-
-                // Обрабатываем нажатия клавиш
                 if (event.type == sf::Event::KeyPressed) {
                     switch (event.key.code) {
                         case sf::Keyboard::Space:
@@ -293,10 +228,10 @@ int main(int argc, char* argv[]) {
                             window.Close();
                             break;
                         case sf::Keyboard::Left:
-                            player.Seek(-10); // Перемотка на 10 секунд назад
+                            player.Seek(-10);
                             break;
                         case sf::Keyboard::Right:
-                            player.Seek(10);  // Перемотка на 10 секунд вперед
+                            player.Seek(10);
                             break;
                         case sf::Keyboard::Up:
                             player.SetVolume(std::min(100.0f, player.GetVolume() + 5.0f));
@@ -306,6 +241,9 @@ int main(int argc, char* argv[]) {
                             break;
                         case sf::Keyboard::F:
                             window.ToggleFullscreen();
+                            break;
+                        case sf::Keyboard::D:
+                            showDebugInfo = !showDebugInfo;
                             break;
                         default:
                             break;
@@ -319,63 +257,71 @@ int main(int argc, char* argv[]) {
             // Отрисовываем видеокадр
             player.Draw(window);
 
-            // Отображаем информацию о воспроизведении
+            // Обновляем и отображаем информацию о воспроизведении
             if (fontLoaded) {
-                // Формируем строку с информацией о воспроизведении
-                std::string timeInfo = "Время: " +
-                    formatTime(player.GetCurrentTime()) + " / " +
-                    formatTime(player.GetDuration()) +
-                    "   Громкость: " + std::to_string(static_cast<int>(player.GetVolume())) + "%";
-
-                // Добавляем информацию о статусе
-                if (player.IsFinished()) {
-                    timeInfo += "   [Воспроизведение завершено]";
-                } else if (player.IsPaused()) {
-                    timeInfo += "   [Пауза]";
+                std::string statusInfo;
+                if (player.IsPaused()) {
+                    statusInfo = "[ПАУЗА]";
+                } else if (player.IsFinished()) {
+                    statusInfo = "[ЗАВЕРШЕНО]";
+                } else {
+                    statusInfo = "[ВОСПРОИЗВЕДЕНИЕ]";
                 }
 
-                timeText.setString(timeInfo);
+                std::string infoString = "Время: " + formatTime(player.GetCurrentTime()) +
+                                         " / " + formatTime(player.GetDuration()) +
+                                         "   Громкость: " + std::to_string(static_cast<int>(player.GetVolume())) + "%" +
+                                         "   " + statusInfo;
 
-                // Создаем полупрозрачный фон для текста
-                sf::RectangleShape textBackground;
-                textBackground.setSize(sf::Vector2f(timeText.getLocalBounds().width + 20, 30));
-                textBackground.setFillColor(sf::Color(0, 0, 0, 150));
-                textBackground.setPosition(5, 5);
+                if (showDebugInfo) {
+                    float fps = 1.0f / clock.restart().asSeconds();
+                    infoString += "\nFPS: " + std::to_string(static_cast<int>(fps));
+                }
 
-                window.GetRenderWindow().draw(textBackground);
-                window.GetRenderWindow().draw(timeText);
+                infoText.setString(infoString);
 
-                // Отображаем инструкции по управлению
-                showInstructions(window, font);
+                // Создаем фон для текста
+                sf::RectangleShape textBg;
+                textBg.setSize(sf::Vector2f(window.GetSize().x, 40));
+                textBg.setFillColor(sf::Color(0, 0, 0, 150));
+                textBg.setPosition(0, 0);
 
-                // Если видео закончилось, отображаем уведомление
+                window.GetRenderWindow().draw(textBg);
+                window.GetRenderWindow().draw(infoText);
+
+                // Отображаем инструкции
+                sf::RectangleShape instructionsBg;
+                instructionsBg.setSize(sf::Vector2f(300, 120));
+                instructionsBg.setFillColor(sf::Color(0, 0, 0, 150));
+                instructionsBg.setPosition(5, window.GetSize().y - 155);
+
+                window.GetRenderWindow().draw(instructionsBg);
+                window.GetRenderWindow().draw(instructionsText);
+
+                // Отображаем сообщение, если видео завершено
                 if (player.IsFinished()) {
-                    sf::Text finishedText;
-                    finishedText.setFont(font);
-                    finishedText.setCharacterSize(30);
-                    finishedText.setFillColor(sf::Color::White);
-                    finishedText.setOutlineColor(sf::Color::Black);
-                    finishedText.setOutlineThickness(2.0f);
-                    finishedText.setString("Воспроизведение завершено");
+                    sf::Text endText;
+                    endText.setFont(font);
+                    endText.setCharacterSize(30);
+                    endText.setFillColor(sf::Color::White);
+                    endText.setString("Воспроизведение завершено");
 
-                    // Центрируем текст
-                    sf::FloatRect textBounds = finishedText.getLocalBounds();
-                    finishedText.setPosition(
-                        (window.GetSize().x - textBounds.width) / 2.0f,
-                        (window.GetSize().y - textBounds.height) / 2.0f
+                    sf::FloatRect textRect = endText.getLocalBounds();
+                    endText.setPosition(
+                        (window.GetSize().x - textRect.width) / 2.0f,
+                        (window.GetSize().y - textRect.height) / 2.0f
                     );
 
-                    // Создаем полупрозрачный фон
-                    sf::RectangleShape finishedBackground;
-                    finishedBackground.setSize(sf::Vector2f(textBounds.width + 40, textBounds.height + 20));
-                    finishedBackground.setFillColor(sf::Color(0, 0, 0, 180));
-                    finishedBackground.setPosition(
-                        finishedText.getPosition().x - 20,
-                        finishedText.getPosition().y - 10
+                    sf::RectangleShape endBg;
+                    endBg.setSize(sf::Vector2f(textRect.width + 40, textRect.height + 40));
+                    endBg.setFillColor(sf::Color(0, 0, 0, 200));
+                    endBg.setPosition(
+                        endText.getPosition().x - 20,
+                        endText.getPosition().y - 20
                     );
 
-                    window.GetRenderWindow().draw(finishedBackground);
-                    window.GetRenderWindow().draw(finishedText);
+                    window.GetRenderWindow().draw(endBg);
+                    window.GetRenderWindow().draw(endText);
                 }
             }
 
@@ -384,14 +330,30 @@ int main(int argc, char* argv[]) {
         }
 
         // Останавливаем воспроизведение
-        std::cout << "Остановка воспроизведения" << std::endl;
         player.Stop();
 
     } catch (const std::exception& e) {
         std::cerr << "Ошибка: " << e.what() << std::endl;
+    }
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        std::cerr << "Использование: " << argv[0] << " <видеофайл> [--test-only]" << std::endl;
         return 1;
     }
 
-    std::cout << "Программа завершена" << std::endl;
+    std::string filename = argv[1];
+    bool testOnly = (argc > 2 && std::string(argv[2]) == "--test-only");
+
+    if (testOnly) {
+        // Запускаем только тестирование функциональности
+        Player player;
+        testPlayer(player, filename);
+    } else {
+        // Запускаем графическое тестирование
+        runGraphicalTest(filename);
+    }
+
     return 0;
 }

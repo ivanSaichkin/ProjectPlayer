@@ -31,10 +31,11 @@ void Player::Load(const std::string& filename) {
             audioDecoder_ = std::make_unique<AudioDecoder>(mediaFile_);
         }
 
-        // Сбрасываем временное смещение и флаги
+        // ИСПРАВЛЕНИЕ: Явно сбрасываем все переменные времени и флаги
         timeOffset_ = 0.0;
         isFinished_ = false;
         isPaused_ = false;
+        isSeeking_ = false;
 
         // Предварительно загружаем первый кадр
         PreloadFirstFrame();
@@ -55,7 +56,7 @@ void Player::PreloadFirstFrame() {
 
     // Читаем и отправляем пакеты до получения первого кадра
     bool frameReceived = false;
-    int maxPacketsToRead = 50;  // Ограничиваем количество попыток
+    int maxPacketsToRead = 100;  // ИСПРАВЛЕНИЕ: Увеличиваем количество попыток
 
     AVPacket* packet = av_packet_alloc();
     if (!packet) {
@@ -78,6 +79,11 @@ void Player::PreloadFirstFrame() {
         if (packet->stream_index == videoStreamIndex) {
             videoDecoder_->ProcessPacket(packet);
             frameReceived = videoDecoder_->HasFrame();
+
+            // ИСПРАВЛЕНИЕ: Добавляем паузу для обработки кадра
+            if (i % 10 == 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
         }
 
         av_packet_unref(packet);
@@ -117,10 +123,10 @@ void Player::Play() {
     isFinished_ = false;
     isSeeking_ = false;
 
-    // Устанавливаем время начала воспроизведения
+    // ИСПРАВЛЕНИЕ: Правильное преобразование времени
     startTime_ = std::chrono::steady_clock::now() -
-                 std::chrono::steady_clock::duration(
-                     std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(timeOffset_)));
+             std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                 std::chrono::duration<double>(timeOffset_));
 
     if (videoDecoder_) {
         videoDecoder_->SetStartTime(startTime_);
@@ -309,6 +315,14 @@ void Player::Seek(int seconds) {
         return;
     }
 
+    // ИСПРАВЛЕНИЕ: Останавливаем воспроизведение для надежной перемотки
+    bool wasRunning = isRunning_;
+    bool wasPaused = isPaused_;
+    isRunning_ = false;
+
+    // Даем время потокам завершиться
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
     // Устанавливаем флаг перемотки
     {
         std::lock_guard<std::mutex> lock(seekMutex_);
@@ -360,6 +374,10 @@ void Player::Seek(int seconds) {
         av_strerror(result, errBuf, sizeof(errBuf));
         std::cerr << "Ошибка при перемотке: " << errBuf << std::endl;
 
+        // Восстанавливаем предыдущее состояние и выходим
+        isRunning_ = wasRunning;
+        isPaused_ = wasPaused;
+
         // Снимаем флаг перемотки
         {
             std::lock_guard<std::mutex> lock(seekMutex_);
@@ -383,10 +401,23 @@ void Player::Seek(int seconds) {
 
     // Обновляем временные метки
     timeOffset_ = targetTime;
-    startTime_ = std::chrono::steady_clock::now() -
-                 std::chrono::steady_clock::duration(
-                     std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(timeOffset_)));
 
+    // ИСПРАВЛЕНИЕ: Правильное преобразование времени
+    startTime_ = std::chrono::steady_clock::now() -
+             std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                 std::chrono::duration<double>(timeOffset_));
+
+    // Перезапускаем воспроизведение если оно было активно
+    if (wasRunning) {
+        isRunning_ = true;
+        isPaused_ = wasPaused;
+
+        // Перезапускаем поток воспроизведения
+        playbackThread_ = std::thread(&Player::PlaybackLoop, this);
+        playbackThread_.detach();
+    }
+
+    // Обновляем время для декодеров
     if (videoDecoder_) {
         videoDecoder_->SetStartTime(startTime_);
     }
@@ -421,6 +452,11 @@ double Player::GetDuration() const {
 }
 
 double Player::GetCurrentTime() const {
+    // ИСПРАВЛЕНИЕ: Добавляем проверку на isRunning_
+    if (!isRunning_ && !isFinished_) {
+        return timeOffset_;
+    }
+
     if (isFinished_) {
         // Если воспроизведение завершено, возвращаем длительность видео
         return GetDuration();
@@ -428,10 +464,6 @@ double Player::GetCurrentTime() const {
 
     if (isPaused_) {
         return timeOffset_;
-    }
-
-    if (!isRunning_) {
-        return 0.0;
     }
 
     auto now = std::chrono::steady_clock::now();

@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include <chrono>
 
 #include "../../Window/include/Window.hpp"
 #include "AudioDecoder.hpp"

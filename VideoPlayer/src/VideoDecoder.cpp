@@ -115,8 +115,7 @@ void VideoDecoder::Flush() {
 
     endOfStream_ = false;
 
-    // Не сбрасываем hasFrame_, чтобы сохранить последний кадр
-    // для отображения во время перемотки
+    // ИСПРАВЛЕНИЕ: Сохраняем флаг hasFrame_, чтобы избежать черного экрана при перемотке
 }
 
 void VideoDecoder::Draw(sf::RenderWindow& window) {
@@ -182,13 +181,15 @@ void VideoDecoder::ProcessVideoFrame(AVFrame* frame) {
         auto now = std::chrono::steady_clock::now();
         double currentTime = std::chrono::duration<double>(now - startTime_).count();
 
+        // ИСПРАВЛЕНИЕ: Изменяем логику пропуска кадров
         // Если кадр еще не должен быть показан, и это не единственный кадр, выходим
-        if (pts > currentTime + 0.1 && hasFrame_) {
+        if (pts > currentTime + 0.5 && hasFrame_) {
             return;
         }
 
-        // Если кадр уже должен был быть показан давно, и у нас есть более новые кадры, выходим
-        if (pts < currentTime - 0.5 && hasFrame_) {
+        // Если кадр уже должен был быть показан давно, и у нас есть более новые кадры в очереди,
+        // пропускаем его, но только если это не единственный кадр
+        if (pts < currentTime - 1.0 && hasFrame_ && !packetQueue_.empty()) {
             return;
         }
     }
@@ -225,11 +226,10 @@ void VideoDecoder::DecodeVideo() {
     bool receivedFirstFrame = false;
 
     while (isRunning_) {
-        // Обрабатываем состояние паузы только после получения первого кадра
-        if (receivedFirstFrame) {
-            while (isPaused_ && isRunning_) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
+        // Обрабатываем состояние паузы
+        if (isPaused_) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
         }
 
         if (!isRunning_) {
@@ -243,16 +243,10 @@ void VideoDecoder::DecodeVideo() {
         {
             std::unique_lock<std::mutex> lock(queueMutex_);
 
-            // При перемотке или в начале воспроизведения не ждем слишком долго
-            if (!receivedFirstFrame) {
-                packetCondition_.wait_for(lock, std::chrono::milliseconds(100), [this] {
-                    return !packetQueue_.empty() || endOfStream_ || !isRunning_;
-                });
-            } else {
-                packetCondition_.wait(lock, [this] {
-                    return !packetQueue_.empty() || endOfStream_ || !isRunning_;
-                });
-            }
+            // ИСПРАВЛЕНИЕ: Уменьшаем время ожидания для более плавного воспроизведения
+            auto waitResult = packetCondition_.wait_for(lock, std::chrono::milliseconds(50), [this] {
+                return !packetQueue_.empty() || endOfStream_ || !isRunning_;
+            });
 
             if (!isRunning_) {
                 break;
@@ -292,11 +286,6 @@ void VideoDecoder::DecodeVideo() {
                 gotFrame = true;
                 receivedFirstFrame = true;
             }
-
-            // Если это первый кадр после перемотки, не ждем паузы
-            if (gotFrame && !receivedFirstFrame) {
-                receivedFirstFrame = true;
-            }
         }
         else if (endOfStream_) {
             // Очищаем декодер
@@ -320,9 +309,9 @@ void VideoDecoder::DecodeVideo() {
                 break;
             }
         }
-        // Если очередь пуста и мы не получили первый кадр, ждем немного
-        else if (!receivedFirstFrame) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        else {
+            // Если очередь пуста, даем процессору отдохнуть
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 
