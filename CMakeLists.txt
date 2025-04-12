@@ -10,11 +10,12 @@ link_directories(/usr/lib/x86_64-linux-gnu)
 
 add_executable(VideoPlayer
     ${CMAKE_CURRENT_SOURCE_DIR}/Test/Test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/VideoPlayer/src/MediaFile.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/VideoPlayer/src/VideoDecoder.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/VideoPlayer/src/AudioDecoder.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/VideoPlayer/src/Player.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/VideoPlayer/src/Decoder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ProcessVideoPlayer/src/AudioChunk.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ProcessVideoPlayer/src/AudioManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ProcessVideoPlayer/src/Frame.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ProcessVideoPlayer/src/FrameManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ProcessVideoPlayer/src/Player.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ProcessVideoPlayer/src/Decoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Window/src/Window.cpp
 )
 
