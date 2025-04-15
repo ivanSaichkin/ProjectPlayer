@@ -1,40 +1,34 @@
 #pragma once
 
-#include <string>
 #include <exception>
 #include <functional>
+#include <string>
 
 // Custom exception class for media player errors
 class MediaPlayerException : public std::exception {
-public:
+ public:
     enum ErrorCode {
         FILE_NOT_FOUND,
         DECODER_ERROR,
         FORMAT_ERROR,
         CODEC_ERROR,
         STREAM_ERROR,
-        RENDER_ERROR,
         UNKNOWN_ERROR
     };
 
-    MediaPlayerException(ErrorCode code, const std::string& message)
-        : code(code), message(message) {}
+    MediaPlayerException(ErrorCode code, const std::string& message) : code(code), message(message) {}
 
-    const char* what() const noexcept override {
-        return message.c_str();
-    }
+    const char* what() const noexcept override { return message.c_str(); }
 
-    ErrorCode getCode() const {
-        return code;
-    }
+    ErrorCode getCode() const { return code; }
 
-private:
+ private:
     ErrorCode code;
     std::string message;
 };
 
 class ErrorHandler {
-public:
+ public:
     // Singleton pattern
     static ErrorHandler& getInstance();
 
@@ -47,7 +41,7 @@ public:
     // Convert FFmpeg error code to string
     static std::string ffmpegErrorToString(int errorCode);
 
-private:
+ private:
     ErrorHandler() = default;
     ~ErrorHandler() = default;
     ErrorHandler(const ErrorHandler&) = delete;
@@ -57,12 +51,9 @@ private:
 };
 
 // Macro for error checking with FFmpeg functions
-#define CHECK_FFMPEG_ERROR(result, operation) \
-    if (result < 0) { \
-        ErrorHandler::getInstance().handleError( \
-            MediaPlayerException::DECODER_ERROR, \
-            std::string("FFmpeg error: ") + operation + " failed: " + \
-            ErrorHandler::ffmpegErrorToString(result) \
-        ); \
-        return false; \
+#define CHECK_FFMPEG_ERROR(result, operation)                                                                                                      \
+    if (result < 0) {                                                                                                                              \
+        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, std::string("FFmpeg error: ") + operation +                   \
+                                                                                         " failed: " + ErrorHandler::ffmpegErrorToString(result)); \
+        return false;                                                                                                                              \
     }

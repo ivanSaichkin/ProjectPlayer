@@ -1,14 +1,16 @@
 #pragma once
 
-#include "MediaDecoder.hpp"
 #include <SFML/Graphics.hpp>
+#include <atomic>
 #include <queue>
 #include <thread>
-#include <atomic>
+
+#include "MediaDecoder.hpp"
 
 extern "C" {
-#include <libswscale/swscale.h>
+#include <libavcodec/avcodec.h>
 #include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
 }
 
 struct VideoFrame {
@@ -17,12 +19,17 @@ struct VideoFrame {
 };
 
 class VideoDecoder : public MediaDecoder {
-public:
+ public:
     VideoDecoder();
     ~VideoDecoder() override;
 
+    // Initialize the video decoder after a file is opened
     bool initialize();
+
+    // Start the decoding thread
     void start();
+
+    // Stop the decoding thread and clean up resources
     void stop();
 
     // Get next video frame
@@ -41,19 +48,22 @@ public:
     void setPaused(bool paused);
     bool isPaused() const;
 
-private:
+ private:
     AVCodecContext* codecContext;
     SwsContext* swsContext;
     AVStream* videoStream;
     int videoStreamIndex;
 
     std::queue<VideoFrame> frameQueue;
-    mutable std::mutex queueMutex;
+    std::mutex queueMutex;
     std::condition_variable queueCondition;
 
     std::thread decodingThread;
     std::atomic<bool> running;
     std::atomic<bool> paused;
+
+    // Maximum number of frames to keep in queue
+    static constexpr size_t MAX_QUEUE_SIZE = 30;
 
     // Decoding thread function
     void decodingLoop();

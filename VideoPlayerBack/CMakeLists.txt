@@ -9,13 +9,11 @@ include_directories(/usr/include) # Заголовочные файлы FFmpeg
 link_directories(/usr/lib/x86_64-linux-gnu)
 
 add_executable(VideoPlayer
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/MediaPlayer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Test/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/API/MediaPlayer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/VideoDecoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/AudioDecoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MediaDecoder.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/PlayerConntrols.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/MediaRenderer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ErrorHandler.cpp
 )
 
