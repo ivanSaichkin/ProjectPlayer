@@ -1,99 +1,139 @@
-# Media Player Project Documentation
+# Video Player Backend API Documentation
 
-## Architecture Overview
-The project is a media player that utilizes FFmpeg libraries for audio/video decoding and SFML for video rendering and audio playback. The main components are:
+This documentation covers the backend API for a video player system built with C++ using FFmpeg and SFML.
 
-- **Player**: Manages playback, pause, stop, and seek functions.
-- **MediaFile**: Loads media files and provides access to metadata.
-- **Decoder**: Base class for decoders (audio/video).
-- **VideoDecoder**: Decodes video and converts frames to SFML format.
-- **AudioDecoder**: Decodes audio and buffers data for SFML Sound.
+## Table of Contents
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Core Components](#core-components)
+- [API Reference](#api-reference)
+- [Integration Guide](#integration-guide)
+- [Threading Model](#threading-model)
+- [Error Handling](#error-handling)
+- [Build Instructions](#build-instructions)
 
-## Key Classes and Methods
+## Overview
+The Video Player Backend API provides:
+- Video/audio decoding using FFmpeg
+- Frame-accurate seeking
+- Volume control
+- Playback state management
+- Event callbacks
+- Thread-safe operation
 
-### 1. Class Player (Player.hpp/cpp)
-**Role**: Central class managing playback.
+## Architecture
+![image](https://github.com/user-attachments/assets/29888c8f-c230-499e-a7c4-31ce014cc8a5)
 
-**Methods**:
-- `Load(const std::string& filename)`: Loads a media file and initializes decoders (audio/video). Resets the time offset (`timeOffset_`).
-- `Play()`: Starts the playback thread (`PlaybackLoop`). Sets the initial time (`startTime_`) for synchronization.
-- `TogglePause()`: Pauses/resumes playback. Updates `timeOffset_` for correct resumption.
-- `Stop()`: Stops decoders and ends the playback thread.
-- `Seek(int seconds)`: Moves the playback position. Resets decoder buffers (`Flush`).
-- `Draw(sf::RenderWindow& window)`: Renders the current video frame via `VideoDecoder`.
 
-**Fields**:
-- `mediaFile_`: Loaded media file.
-- `videoDecoder_, audioDecoder_`: Decoders for video and audio.
-- `startTime_`: Start time for synchronization.
-- `isRunning_, isPaused_`: Atomic state flags.
+## Core Components
+- `MediaPlayer`: Main controller
+- `VideoDecoder`: Video stream handling
+- `AudioDecoder`: Audio stream handling
+- `MediaDecoder`: Base decoder class
+- `ErrorHandler`: Error management
 
-### 2. Class MediaFile (MediaFile.hpp/cpp)
-**Role**: Works with media files through FFmpeg.
+## API Reference
 
-**Methods**:
-- `Load(const std::string& filename)`: Opens the file and identifies audio/video streams. Initializes `AVFormatContext`.
-- `GetVideoStreamIndex(), GetAudioStreamIndex()`: Return stream indices.
-- `GetVideoTimeBase(), GetAudioTimeBase()`: Return time base for synchronization.
+### MediaPlayer
+```cpp
+// Control methods
+bool open(const std::string& filename);
+void close();
+void play();
+void pause();
+void togglePlayPause();
+void seek(double seconds);
+void setVolume(float volume);
 
-**Fields**:
-- `formatContext_`: FFmpeg format context.
-- `videoStreamIndex_, audioStreamIndex_`: Stream indices.
+// Status methods
+bool isPlaying() const;
+double getDuration() const;
+double getCurrentPosition() const;
+sf::Vector2u getVideoSize() const;
 
-### 3. Class Decoder (Decoder.hpp)
-**Role**: Base class for decoders.
+// Frame access
+bool getCurrentFrame(sf::Texture& texture);
+void update();
 
-**Methods**:
-- `Start()`: Starts the decoding thread (virtual).
-- `Stop()`: Stops the decoder and notifies condition variables.
-- `Flush()`: Resets buffers and states (virtual).
-- `SetPaused(bool paused)`: Manages pause state.
-- `ProcessPacket(AVPacket* packet)`: Processes data packet (virtual).
+// Callbacks
+void setPlaybackStartCallback(std::function<void()> callback);
+void setErrorCallback(std::function<void(const MediaPlayerException&)> callback);
+```
 
-**Fields**:
-- `packetQueue_`: Queue of packets for decoding.
-- `isRunning_, isPaused_, endOfStream_`: Decoder states.
-- `packetCondition_`: Condition variable for thread synchronization.
+### VideoDecoder
+```cpp
+bool initialize();
+void start();
+void stop();
+bool getNextFrame(VideoFrame& frame);
+sf::Vector2u getSize() const;
+```
 
-### 4. Class VideoDecoder (VideoDecoder.hpp/cpp)
-**Role**: Decodes video and renders through SFML.
+### AudioDecoder
+```cpp
+bool initialize();
+void start();
+void stop();
+bool getNextPacket(AudioPacket& packet);
+unsigned int getSampleRate() const;
+```
+## Integration Guide
+```cpp
+MediaPlayer player;
+player.setErrorCallback([](const MediaPlayerException& e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+});
 
-**Methods**:
-- `DecodeVideo()`: Main loop for decoding video from `packetQueue_`. Uses `swsContext` to convert frames to RGBA.
-- `ProcessVideoFrame(AVFrame* frame)`: Synchronizes frame display time. Updates SFML texture (`texture_`).
+if (!player.open("video.mp4")) {
+    std::cerr << "Failed to open file" << std::endl;
+    return;
+}
 
-**Fields**:
-- `videoCodecContext_`: Video codec context.
-- `swsContext_`: Scaling/conversion context from FFmpeg.
-- `texture_, sprite_`: SFML objects for rendering.
+player.play();
 
-### 5. Class AudioDecoder (AudioDecoder.hpp/cpp)
-**Role**: Decodes audio and plays it through SFML.
+while (running) {
+    player.update();
+    sf::Texture frame;
+    if (player.getCurrentFrame(frame)) {
+        // Render frame
+    }
+}
+```
+## Threading Model
 
-**Methods**:
-- `DecodeAudio()`: Main loop for audio decoding. Converts audio data to `int16_t` format for SFML.
-- `ProcessAudioFrame(AVFrame* frame)`: Accumulates samples in `audioBuffer_`. Sends data to `sf::SoundBuffer` when threshold is reached.
+- **Main thread**: Handles API calls and player updates  
+- **Video thread**: Dedicated to frame decoding  
+- **Audio thread**: Handles packet decoding  
+- **SFML thread**: Manages audio playback  
 
-**Fields**:
-- `audioCodecContext_`: Audio codec context.
-- `sound_, soundBuffer_`: SFML objects for playback.
-- `audioBuffer_`: Buffer for accumulating samples.
+## Error Handling
 
-## Interaction Diagram
+```cpp
+enum ErrorCode {
+    FILE_NOT_FOUND,
+    DECODER_ERROR,
+    FORMAT_ERROR,
+    CODEC_ERROR,
+    STREAM_ERROR,
+    UNKNOWN_ERROR
+};
+```
+## Build Instructions
 
-### Initialization:
-`Player::Load()` creates `MediaFile`, `VideoDecoder`, and `AudioDecoder`.
+### Prerequisites
 
-### Playback:
-`Player::Play()` starts `PlaybackLoop` in a separate thread. `PlaybackLoop` reads packets from the file and distributes them to decoders.
+- **Compiler**: C++17 compatible
+- **Build System**: CMake 3.10+
 
-### Decoding:
-- **Video**: `VideoDecoder` decodes packets, converts frames, and updates the texture.
-- **Audio**: `AudioDecoder` accumulates samples and periodically sends them to SFML.
+#### FFmpeg Libraries:
+- libavcodec
+- libavformat  
+- libavutil  
+- libswscale  
+- libswresample  
 
-### Synchronization:
-- **Video**: Frames are displayed considering time (`startTime_`).
-- **Audio**: Playback through SFML is automatically synchronized.
-
-### Completion:
-When the end of the file is reached, decoders receive a `SignalEndOfStream`. Remaining data in buffers is sent for playback.
+#### SFML 2.5+:
+- sfml-graphics
+- sfml-window  
+- sfml-system  
+- sfml-audio
