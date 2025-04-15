@@ -12,7 +12,7 @@ public:
     MediaRenderer(VideoDecoder& videoDecoder, AudioDecoder& audioDecoder);
     ~MediaRenderer();
 
-    void initialize();
+    bool initialize();
     void start();
     void stop();
 
@@ -25,6 +25,10 @@ public:
     // Pause/resume rendering
     void setPaused(bool paused);
     bool isPaused() const;
+
+    // Set volume (0.0 to 1.0)
+    void setVolume(float volume);
+    float getVolume() const;
 
 private:
     VideoDecoder& videoDecoder;
@@ -39,9 +43,14 @@ private:
         void start();
         void stop();
 
+        // Set volume (0.0 to 100.0 as per SFML)
+        void setVolumeLevel(float volume);
+        float getVolumeLevel() const;
+
     private:
         AudioDecoder& audioDecoder;
         std::vector<sf::Int16> buffer;
+        float volumeLevel;
 
         // SoundStream overrides
         bool onGetData(Chunk& data) override;
@@ -53,6 +62,7 @@ private:
     std::atomic<bool> running;
     std::atomic<bool> paused;
     std::atomic<double> currentPosition;
+    std::atomic<float> volume;
 
     // Rendering thread function
     void renderingLoop();

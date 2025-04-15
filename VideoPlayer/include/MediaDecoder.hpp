@@ -5,16 +5,17 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 #include <libavutil/time.h>
-#include <libavutil/imgutils.h>
 }
 
-#include <string>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <condition_variable>
+#include <string>
+
+#include "ErrorHandler.hpp"
 
 class MediaDecoder {
-public:
+ public:
     MediaDecoder();
     virtual ~MediaDecoder();
 
@@ -30,10 +31,11 @@ public:
     // Check if media is opened
     bool isOpen() const;
 
-protected:
+ protected:
     AVFormatContext* formatContext;
     bool opened;
     std::mutex mutex;
+    std::string filename;
 
     // Find stream by type
     int findStream(AVMediaType type) const;

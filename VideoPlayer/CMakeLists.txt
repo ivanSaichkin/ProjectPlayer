@@ -16,6 +16,7 @@ add_executable(VideoPlayer
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MediaDecoder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PlayerConntrols.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MediaRenderer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ErrorHandler.cpp
 )
 
 

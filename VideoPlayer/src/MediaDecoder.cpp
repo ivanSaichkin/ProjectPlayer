@@ -1,4 +1,5 @@
 #include "../include/MediaDecoder.hpp"
+
 #include <iostream>
 
 MediaDecoder::MediaDecoder() : formatContext(nullptr), opened(false) {
@@ -22,23 +23,29 @@ bool MediaDecoder::open(const std::string& filename) {
         close();
     }
 
+    this->filename = filename;
+
     // Open input file
     formatContext = avformat_alloc_context();
     if (!formatContext) {
-        std::cerr << "Failed to allocate format context" << std::endl;
+        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to allocate format context");
         return false;
     }
 
-    if (avformat_open_input(&formatContext, filename.c_str(), nullptr, nullptr) != 0) {
-        std::cerr << "Failed to open input file: " << filename << std::endl;
+    int result = avformat_open_input(&formatContext, filename.c_str(), nullptr, nullptr);
+    if (result != 0) {
+        ErrorHandler::getInstance().handleError(MediaPlayerException::FILE_NOT_FOUND,
+                                                "Failed to open input file: " + filename + " - " + ErrorHandler::ffmpegErrorToString(result));
         avformat_free_context(formatContext);
         formatContext = nullptr;
         return false;
     }
 
     // Find stream info
-    if (avformat_find_stream_info(formatContext, nullptr) < 0) {
-        std::cerr << "Failed to find stream information" << std::endl;
+    result = avformat_find_stream_info(formatContext, nullptr);
+    if (result < 0) {
+        ErrorHandler::getInstance().handleError(MediaPlayerException::FORMAT_ERROR,
+                                                "Failed to find stream information: " + ErrorHandler::ffmpegErrorToString(result));
         avformat_close_input(&formatContext);
         formatContext = nullptr;
         return false;
@@ -63,13 +70,20 @@ bool MediaDecoder::seek(double seconds) {
     std::lock_guard<std::mutex> lock(mutex);
 
     if (!opened || !formatContext) {
+        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Cannot seek: decoder not open");
         return false;
     }
 
     int64_t timestamp = static_cast<int64_t>(seconds * AV_TIME_BASE);
     int result = av_seek_frame(formatContext, -1, timestamp, AVSEEK_FLAG_BACKWARD);
 
-    return result >= 0;
+    if (result < 0) {
+        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to seek to position " + std::to_string(seconds) +
+                                                                                         " seconds: " + ErrorHandler::ffmpegErrorToString(result));
+        return false;
+    }
+
+    return true;
 }
 
 double MediaDecoder::getDuration() const {
