@@ -2,7 +2,6 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
-
 #include "../ProcessVideoPlayer/include/Player.hpp"
 #include "../Window/include/Window.hpp"
 
@@ -18,23 +17,60 @@ std::string formatTime(double seconds) {
     return ss.str();
 }
 
-// Функция для отображения прогресса декодирования
-void showProgress(float progress) {
-    const int barWidth = 50;
-    int pos = static_cast<int>(barWidth * progress);
+// Функция для отображения прогресса загрузки
+void showLoadingProgress(float progress, sf::RenderWindow& window, sf::Font& font) {
+    window.clear(sf::Color(20, 20, 20));
 
-    std::cout << "[";
-    for (int i = 0; i < barWidth; ++i) {
-        if (i < pos) std::cout << "=";
-        else if (i == pos) std::cout << ">";
-        else std::cout << " ";
-    }
-    std::cout << "] " << int(progress * 100.0) << "%\r";
-    std::cout.flush();
+    // Текст "Загрузка..."
+    sf::Text loadingText;
+    loadingText.setFont(font);
+    loadingText.setCharacterSize(24);
+    loadingText.setFillColor(sf::Color::White);
+    loadingText.setString("Загрузка видео...");
 
-    if (progress >= 1.0) {
-        std::cout << std::endl;
-    }
+    // Центрируем текст
+    sf::FloatRect textRect = loadingText.getLocalBounds();
+    loadingText.setPosition(
+        (window.getSize().x - textRect.width) / 2.0f,
+        (window.getSize().y - textRect.height) / 2.0f - 50
+    );
+
+    // Создаем прогресс-бар
+    sf::RectangleShape progressBar;
+    progressBar.setSize(sf::Vector2f(window.getSize().x * 0.7f, 20));
+    progressBar.setFillColor(sf::Color(50, 50, 50));
+    progressBar.setPosition(
+        window.getSize().x * 0.15f,
+        (window.getSize().y - 20) / 2.0f + 20
+    );
+
+    // Индикатор прогресса
+    sf::RectangleShape progressIndicator;
+    progressIndicator.setSize(sf::Vector2f(progressBar.getSize().x * progress, 20));
+    progressIndicator.setFillColor(sf::Color(50, 150, 255));
+    progressIndicator.setPosition(progressBar.getPosition());
+
+    // Текст с процентами
+    sf::Text percentText;
+    percentText.setFont(font);
+    percentText.setCharacterSize(16);
+    percentText.setFillColor(sf::Color::White);
+    percentText.setString(std::to_string(static_cast<int>(progress * 100)) + "%");
+
+    // Центрируем текст с процентами
+    sf::FloatRect percentRect = percentText.getLocalBounds();
+    percentText.setPosition(
+        (window.getSize().x - percentRect.width) / 2.0f,
+        progressBar.getPosition().y + progressBar.getSize().y + 10
+    );
+
+    // Отрисовываем все элементы
+    window.draw(loadingText);
+    window.draw(progressBar);
+    window.draw(progressIndicator);
+    window.draw(percentText);
+
+    window.display();
 }
 
 int main(int argc, char* argv[]) {
@@ -46,16 +82,54 @@ int main(int argc, char* argv[]) {
 
     std::string filename = argv[1];
 
+    // Создаем временное окно для отображения прогресса загрузки
+    sf::RenderWindow loadingWindow(sf::VideoMode(600, 200), "Загрузка видео", sf::Style::Titlebar);
+
+    // Загружаем шрифт
+    sf::Font font;
+    bool fontLoaded = font.loadFromFile("Arial.ttf");
+
+    if (!fontLoaded) {
+        // Пробуем другие шрифты
+        std::vector<std::string> fontPaths = {
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf"
+        };
+
+        for (const auto& path : fontPaths) {
+            if (font.loadFromFile(path)) {
+                fontLoaded = true;
+                break;
+            }
+        }
+    }
+
     // Создаем плеер
     Player player;
 
     try {
-        // Загружаем и декодируем видео с отображением прогресса
-        std::cout << "Loading and decoding: " << filename << std::endl;
-        if (!player.Load(filename, showProgress)) {
-            std::cerr << "Failed to load video" << std::endl;
+        // Загружаем и индексируем видео с отображением прогресса
+        bool loaded = player.Load(filename, [&](float progress) {
+            if (fontLoaded && loadingWindow.isOpen()) {
+                showLoadingProgress(progress, loadingWindow, font);
+            } else {
+                std::cout << "Загрузка: " << static_cast<int>(progress * 100) << "%\r";
+                std::cout.flush();
+            }
+        });
+
+        // Закрываем окно загрузки
+        if (loadingWindow.isOpen()) {
+            loadingWindow.close();
+        }
+
+        if (!loaded) {
+            std::cerr << "Не удалось загрузить видео" << std::endl;
             return 1;
         }
+
+        std::cout << std::endl << "Видео успешно загружено!" << std::endl;
 
         // Получаем размеры видео
         int videoWidth = player.GetWidth();
@@ -81,29 +155,10 @@ int main(int argc, char* argv[]) {
         windowHeight = std::max(windowHeight, 480);
 
         // Создаем окно
-        Window window(windowWidth, windowHeight, "Video Player - " + filename);
+        Window window(windowWidth, windowHeight, "Видеоплеер - " + filename);
         if (!window.Open()) {
-            std::cerr << "Failed to create window" << std::endl;
+            std::cerr << "Не удалось создать окно" << std::endl;
             return 1;
-        }
-
-        // Загружаем шрифт для отображения информации
-        sf::Font font;
-        bool fontLoaded = false;
-
-        // Пробуем загрузить шрифт из разных мест
-        std::vector<std::string> fontPaths = {
-            "Arial.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans.ttf",
-            "C:\\Windows\\Fonts\\arial.ttf"
-        };
-
-        for (const auto& path : fontPaths) {
-            if (font.loadFromFile(path)) {
-                fontLoaded = true;
-                break;
-            }
         }
 
         // Создаем текст для отображения информации
@@ -126,12 +181,12 @@ int main(int argc, char* argv[]) {
             helpText.setPosition(10, window.GetSize().y - 120);
 
             helpText.setString(
-                "Space: Play/Pause\n"
-                "Left/Right: Seek -/+ 10s\n"
-                "Up/Down: Volume +/-\n"
-                "M: Mute/Unmute\n"
-                "F: Fullscreen\n"
-                "Esc: Exit"
+                "Пробел: Воспроизведение/Пауза\n"
+                "Стрелки влево/вправо: Перемотка -/+ 10с\n"
+                "Стрелки вверх/вниз: Громкость +/-\n"
+                "M: Включить/выключить звук\n"
+                "F: Полноэкранный режим\n"
+                "Esc: Выход"
             );
         }
 
@@ -148,6 +203,11 @@ int main(int argc, char* argv[]) {
 
         // Устанавливаем начальную громкость
         player.SetVolume(80.0f);
+
+        // Устанавливаем максимальное количество кадров в памяти
+        // Для больших видео можно уменьшить, для маленьких увеличить
+        player.SetMaxFramesInMemory(300);  // ~10 секунд при 30fps
+        player.SetMaxAudioChunksInMemory(100);  // ~30 секунд аудио
 
         // Начинаем воспроизведение
         player.Play();
@@ -199,6 +259,14 @@ int main(int argc, char* argv[]) {
                             }
                             break;
 
+                        case sf::Keyboard::R:
+                            // Перезапуск воспроизведения
+                            if (player.IsFinished()) {
+                                player.Seek(0.0);
+                                player.Play();
+                            }
+                            break;
+
                         default:
                             break;
                     }
@@ -240,14 +308,24 @@ int main(int argc, char* argv[]) {
 
             // Отображаем информацию о воспроизведении
             if (fontLoaded) {
-                std::string status = player.IsPaused() ? "[Paused]" : (player.IsPlaying() ? "[Playing]" : "[Stopped]");
-                std::string muteStatus = player.IsMuted() ? "[Muted]" : "";
+                std::string status;
+                if (player.IsFinished()) {
+                    status = "[Завершено]";
+                } else if (player.IsPaused()) {
+                    status = "[Пауза]";
+                } else if (player.IsPlaying()) {
+                    status = "[Воспроизведение]";
+                } else {
+                    status = "[Остановлено]";
+                }
+
+                std::string muteStatus = player.IsMuted() ? "[Без звука]" : "";
 
                 std::stringstream ss;
                 ss << formatTime(player.GetCurrentTime()) << " / "
                    << formatTime(player.GetDuration()) << "  "
                    << status << "  "
-                   << "Volume: " << static_cast<int>(player.GetVolume()) << "% "
+                   << "Громкость: " << static_cast<int>(player.GetVolume()) << "% "
                    << muteStatus;
 
                 infoText.setString(ss.str());
@@ -273,14 +351,14 @@ int main(int argc, char* argv[]) {
                 window.GetRenderWindow().draw(progressIndicator);
 
                 // Если воспроизведение завершено, показываем сообщение
-                if (!player.IsPlaying() && player.GetCurrentTime() >= player.GetDuration() - 0.1) {
+                if (player.IsFinished()) {
                     sf::Text endText;
                     endText.setFont(font);
                     endText.setCharacterSize(30);
                     endText.setFillColor(sf::Color::White);
                     endText.setOutlineColor(sf::Color::Black);
                     endText.setOutlineThickness(2.0f);
-                    endText.setString("Playback Finished");
+                    endText.setString("Воспроизведение завершено\nНажмите R для перезапуска или\nпробел для продолжения с начала");
 
                     // Центрируем текст
                     sf::FloatRect textRect = endText.getLocalBounds();
@@ -319,7 +397,7 @@ int main(int argc, char* argv[]) {
         player.Stop();
 
     } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::cerr << "Ошибка: " << e.what() << std::endl;
         return 1;
     }
 
