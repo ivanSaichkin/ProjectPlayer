@@ -26,6 +26,7 @@ public:
     bool isTrackClicked(const sf::RenderWindow& window) const; // нажат ли трек прогрессбара
     void updateThumbFromMouse(const sf::RenderWindow& window);
     void updateThumbPosition(const sf::Vector2f& position); // Обновляет позицию бегунка в зависимости от прогресса (0.0 - 1.0)
+    void fillWithColor(const sf::Vector2f& position);
 
     void startDragging();
     void stopDragging();
