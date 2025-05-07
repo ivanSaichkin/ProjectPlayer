@@ -1,4 +1,4 @@
-#include "../include/AudioDecoder.hpp"
+#include "../../include/core/AudioDecoder.hpp"
 
 #include <iostream>
 

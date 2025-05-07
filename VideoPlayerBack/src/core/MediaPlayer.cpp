@@ -1,4 +1,4 @@
-#include "MediaPlayer.hpp"
+#include "../../include/core/MediaPlayer.hpp"
 
 #include <iostream>
 

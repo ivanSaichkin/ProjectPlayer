@@ -1,4 +1,4 @@
-#include "../include/MediaDecoder.hpp"
+#include "../../include/core/MediaDecoder.hpp"
 
 #include <iostream>
 

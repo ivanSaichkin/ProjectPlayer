@@ -7,8 +7,8 @@
 #include <memory>
 #include <mutex>
 
-#include "../include/AudioDecoder.hpp"
-#include "../include/VideoDecoder.hpp"
+#include "AudioDecoder.hpp"
+#include "VideoDecoder.hpp"
 
 class MediaPlayer {
  public:

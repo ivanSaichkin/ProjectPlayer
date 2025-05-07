@@ -1,4 +1,4 @@
-#include "../include/VideoDecoder.hpp"
+#include "../../include/core/VideoDecoder.hpp"
 
 #include <iostream>
 
