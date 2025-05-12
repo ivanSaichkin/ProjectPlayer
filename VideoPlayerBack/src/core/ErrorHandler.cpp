@@ -90,8 +90,7 @@ void ErrorHandler::logErrorToFile(const MediaPlayerException& error) {
             ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
 
             // Write error details
-            file << "[" << ss.str() << "] "
-                 << "Error code: " << error.getErrorCode() << " - " << error.what() << std::endl;
+            file << "[" << ss.str() << "] " << "Error code: " << error.getErrorCode() << " - " << error.what() << std::endl;
 
             file.close();
         }
