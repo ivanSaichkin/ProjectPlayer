@@ -1,9 +1,10 @@
 #pragma once
 
-#include <string>
-#include <vector>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <string>
+#include <vector>
+
 #include "Playlist.hpp"
 
 using json = nlohmann::json;
@@ -12,7 +13,7 @@ namespace VideoPlayer {
 namespace Playlist {
 
 class PlaylistManager {
-public:
+ public:
     // Singleton pattern
     static PlaylistManager& getInstance();
 
@@ -48,7 +49,7 @@ public:
     bool saveState(const std::string& filename = "");
     bool loadState(const std::string& filename = "");
 
-private:
+ private:
     PlaylistManager();
     ~PlaylistManager();
     PlaylistManager(const PlaylistManager&) = delete;
@@ -60,5 +61,5 @@ private:
     std::string defaultDirectory;
 };
 
-} // namespace Playlist
-} // namespace VideoPlayer
+}  // namespace Playlist
+}  // namespace VideoPlayer

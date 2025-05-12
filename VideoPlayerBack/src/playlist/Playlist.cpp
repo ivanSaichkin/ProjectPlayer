@@ -1,15 +1,19 @@
 #include "../../include/playlist/Playlist.hpp"
-#include <fstream>
+
 #include <filesystem>
+#include <fstream>
+
 #include "../../include/core/ErrorHandler.hpp"
 
 namespace fs = std::filesystem;
 namespace VideoPlayer {
 namespace Playlist {
 
-Playlist::Playlist(const std::string& name) : name(name) {}
+Playlist::Playlist(const std::string& name) : name(name) {
+}
 
-Playlist::~Playlist() {}
+Playlist::~Playlist() {
+}
 
 void Playlist::addItem(const std::string& path, const std::string& title) {
     PlaylistItem item;
@@ -106,15 +110,15 @@ bool Playlist::saveToFile(const std::string& filename) {
     try {
         std::ofstream file(filename);
         if (!file.is_open()) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to open file for writing: " + filename);
+            Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Failed to open file for writing: " + filename);
             return false;
         }
 
         json j = toJson();
-        file << j.dump(4); // Pretty print with 4-space indentation
+        file << j.dump(4);  // Pretty print with 4-space indentation
         return true;
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Error saving playlist: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Error saving playlist: " + std::string(e.what()));
         return false;
     }
 }
@@ -123,7 +127,7 @@ bool Playlist::loadFromFile(const std::string& filename) {
     try {
         std::ifstream file(filename);
         if (!file.is_open()) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to open file for reading: " + filename);
+            Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Failed to open file for reading: " + filename);
             return false;
         }
 
@@ -131,7 +135,7 @@ bool Playlist::loadFromFile(const std::string& filename) {
         file >> j;
         return fromJson(j);
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Error loading playlist: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Error loading playlist: " + std::string(e.what()));
         return false;
     }
 }
@@ -139,7 +143,7 @@ bool Playlist::loadFromFile(const std::string& filename) {
 json Playlist::toJson() const {
     json j;
     j["name"] = name;
-    j["items"] = items; // Uses the to_json function for PlaylistItem
+    j["items"] = items;  // Uses the to_json function for PlaylistItem
     return j;
 }
 
@@ -149,7 +153,8 @@ bool Playlist::fromJson(const json& j) {
         items = j.at("items").get<std::vector<PlaylistItem>>();
         return true;
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Error parsing playlist JSON: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR,
+                                                      "Error parsing playlist JSON: " + std::string(e.what()));
         return false;
     }
 }
@@ -160,5 +165,5 @@ std::string Playlist::generateThumbnail(const std::string& videoPath) {
     return "";
 }
 
-} // namespace Playlist
-} // namespace VideoPlayer
+}  // namespace Playlist
+}  // namespace VideoPlayer

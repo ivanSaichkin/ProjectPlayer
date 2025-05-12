@@ -1,140 +1,118 @@
 #include "../../include/core/MediaPlayer.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <iostream>
 
-// CustomAudioStream implementation
-MediaPlayer::CustomAudioStream::CustomAudioStream(AudioDecoder& decoder) : audioDecoder(decoder) {
-    // Initialize audio stream
-    initialize(decoder.getChannelCount(), decoder.getSampleRate());
-}
+namespace VideoPlayer {
+namespace Core {
 
-void MediaPlayer::CustomAudioStream::start() {
-    play();
-}
-
-void MediaPlayer::CustomAudioStream::stop() {
-    sf::SoundStream::stop();
-}
-
-bool MediaPlayer::CustomAudioStream::onGetData(Chunk& data) {
-    // Get next audio packet
-    AudioPacket packet;
-    if (!audioDecoder.getNextPacket(packet)) {
-        return false;
-    }
-
-    // Set buffer data
-    buffer = std::move(packet.samples);
-    data.samples = buffer.data();
-    data.sampleCount = buffer.size();
-
-    return true;
-}
-
-void MediaPlayer::CustomAudioStream::onSeek(sf::Time timeOffset) {
-    // Not implemented, seeking is handled by MediaPlayer
-}
-
-// MediaPlayer implementation
-MediaPlayer::MediaPlayer() : playing(false), volume(1.0f), currentPosition(0.0), newFrameAvailable(false) {
-    // Set error callback
-    ErrorHandler::getInstance().setErrorCallback([this](const MediaPlayerException& e) {
-        if (e.getCode() == MediaPlayerException::FILE_NOT_FOUND || e.getCode() == MediaPlayerException::DECODER_ERROR) {
-            close();
-        }
-    });
+MediaPlayer::MediaPlayer()
+    : playing(false), paused(false), currentPosition(0.0), duration(0.0), volume(100.0f), frameTime(0.0), threadRunning(false) {
+    // Initialize decoders
+    audioDecoder = std::make_unique<AudioDecoder>();
+    videoDecoder = std::make_unique<VideoDecoder>();
 }
 
 MediaPlayer::~MediaPlayer() {
+    // Stop playback and clean up
+    stop();
     close();
 }
 
-bool MediaPlayer::open(const std::string& filename) {
-    // Close any previously opened file
-    close();
+bool MediaPlayer::open(const std::string& filePath) {
+    try {
+        // Stop playback if running
+        stop();
 
-    // Open the media file
-    if (!videoDecoder.open(filename)) {
+        // Close previous file if open
+        close();
+
+        // Initialize video decoder
+        if (!videoDecoder->open(filePath)) {
+            handleError(MediaPlayerException::FILE_OPEN_ERROR, "Failed to open video stream");
+            return false;
+        }
+
+        // Initialize audio decoder
+        if (!audioDecoder->open(filePath)) {
+            // Video-only file is acceptable
+            std::cout << "No audio stream found or audio stream could not be opened" << std::endl;
+        }
+
+        // Get duration
+        duration = videoDecoder->getDuration();
+
+        // Reset position
+        currentPosition = 0.0;
+
+        // Set up initial video frame
+        sf::Image image;
+        image.create(videoDecoder->getWidth(), videoDecoder->getHeight(), sf::Color::Black);
+
+        frameMutex.lock();
+        currentFrame.loadFromImage(image);
+        frameMutex.unlock();
+
+        return true;
+    } catch (const std::exception& e) {
+        handleError(MediaPlayerException::FILE_OPEN_ERROR, "Exception while opening file: " + std::string(e.what()));
         return false;
     }
-
-    // Initialize video decoder
-    if (!videoDecoder.initialize()) {
-        videoDecoder.close();
-        return false;
-    }
-
-    // Initialize audio decoder if available
-    bool hasAudio = audioDecoder.open(filename) && audioDecoder.initialize();
-
-    // Start video decoding
-    videoDecoder.start();
-
-    // Start audio decoding if available
-    if (hasAudio) {
-        audioDecoder.start();
-
-        // Create audio stream
-        audioStream = std::make_unique<CustomAudioStream>(audioDecoder);
-    }
-
-    // Reset position and state
-    currentPosition = 0.0;
-    playing = false;
-    newFrameAvailable = false;
-
-    return true;
 }
 
 void MediaPlayer::close() {
-    // Stop playback
-    if (playing) {
-        pause();
-    }
+    // Stop playback if running
+    stop();
 
-    // Stop and close decoders
-    videoDecoder.stop();
-    videoDecoder.close();
-
-    audioDecoder.stop();
-    audioDecoder.close();
-
-    // Reset audio stream
-    audioStream.reset();
+    // Close decoders
+    videoDecoder->close();
+    audioDecoder->close();
 
     // Reset state
     currentPosition = 0.0;
-    playing = false;
-    newFrameAvailable = false;
+    duration = 0.0;
+}
 
-    // Call stop callback
-    if (playbackStopCallback) {
-        playbackStopCallback();
-    }
+bool MediaPlayer::isOpen() const {
+    return videoDecoder->isOpen() || audioDecoder->isOpen();
 }
 
 void MediaPlayer::play() {
-    if (playing) {
+    if (!isOpen()) {
+        handleError(MediaPlayerException::PLAYBACK_ERROR, "No file is open");
         return;
     }
 
-    if (!videoDecoder.isOpen()) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Cannot play: no file is open");
+    if (playing && !paused) {
+        // Already playing
         return;
     }
 
-    // Start decoders
-    videoDecoder.setPaused(false);
-    audioDecoder.setPaused(false);
+    if (paused) {
+        // Resume from pause
+        paused = false;
 
-    // Start audio playback if available
-    if (audioStream) {
-        audioStream->start();
+        // Resume audio
+        sound.play();
+
+        // Call pause callback
+        if (playbackPauseCallback) {
+            playbackPauseCallback();
+        }
+
+        return;
     }
 
-    // Update state
+    // Start playback
     playing = true;
-    positionClock.restart();
+    paused = false;
+
+    // Start playback thread if not running
+    if (!threadRunning) {
+        threadRunning = true;
+        playbackThread = std::thread(&MediaPlayer::playbackLoop, this);
+    }
 
     // Call start callback
     if (playbackStartCallback) {
@@ -143,24 +121,15 @@ void MediaPlayer::play() {
 }
 
 void MediaPlayer::pause() {
-    if (!playing) {
+    if (!playing || paused) {
         return;
     }
 
-    // Pause decoders
-    videoDecoder.setPaused(true);
-    audioDecoder.setPaused(true);
+    // Pause playback
+    paused = true;
 
-    // Pause audio playback if available
-    if (audioStream) {
-        audioStream->stop();
-    }
-
-    // Update state
-    playing = false;
-
-    // Update position
-    updatePosition();
+    // Pause audio
+    sound.pause();
 
     // Call pause callback
     if (playbackPauseCallback) {
@@ -168,130 +137,108 @@ void MediaPlayer::pause() {
     }
 }
 
-void MediaPlayer::togglePlayPause() {
-    if (playing) {
-        pause();
-    } else {
-        play();
-    }
-}
-
-void MediaPlayer::seek(double seconds) {
-    if (!videoDecoder.isOpen()) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Cannot seek: no file is open");
+void MediaPlayer::stop() {
+    if (!playing) {
         return;
     }
 
-    // Clamp position to valid range
-    double duration = getDuration();
-    if (seconds < 0) {
-        seconds = 0;
-    } else if (seconds > duration) {
-        seconds = duration;
+    // Stop playback
+    playing = false;
+    paused = false;
+
+    // Stop audio
+    sound.stop();
+
+    // Wait for playback thread to finish
+    if (threadRunning) {
+        threadRunning = false;
+        if (playbackThread.joinable()) {
+            playbackThread.join();
+        }
     }
 
+    // Reset position
+    currentPosition = 0.0;
+
+    // Call stop callback
+    if (playbackStopCallback) {
+        playbackStopCallback();
+    }
+}
+
+void MediaPlayer::seek(double position) {
+    if (!isOpen()) {
+        return;
+    }
+
+    // Clamp position
+    position = std::max<double>(0.0, std::min<double>(position, duration));
+
+    // Seek in decoders
+    bool wasPlaying = playing && !paused;
+
     // Pause playback temporarily
-    bool wasPlaying = playing;
-    if (playing) {
-        pause();
+    if (wasPlaying) {
+        sound.pause();
     }
 
     // Seek in decoders
-    videoDecoder.seek(seconds);
-    audioDecoder.seek(seconds);
+    videoDecoder->seek(position);
+    if (audioDecoder->isOpen()) {
+        audioDecoder->seek(position);
+    }
 
     // Update position
-    currentPosition = seconds;
-    positionClock.restart();
+    currentPosition = position;
 
-    // Notify position change
-    notifyPositionChange();
+    // Decode first frame at new position
+    decodeNextVideoFrame();
 
     // Resume playback if it was playing
     if (wasPlaying) {
-        play();
-    }
-}
-
-void MediaPlayer::setVolume(float volume) {
-    // Clamp volume to valid range
-    if (volume < 0.0f) {
-        volume = 0.0f;
-    } else if (volume > 1.0f) {
-        volume = 1.0f;
+        sound.play();
     }
 
-    this->volume = volume;
-
-    // Set volume on audio stream if available
-    if (audioStream) {
-        audioStream->setVolume(volume * 100.0f);
+    // Call position change callback
+    if (positionChangeCallback) {
+        positionChangeCallback(currentPosition);
     }
-}
-
-float MediaPlayer::getVolume() const {
-    return volume;
 }
 
 bool MediaPlayer::isPlaying() const {
-    return playing;
+    return playing && !paused;
 }
 
-double MediaPlayer::getDuration() const {
-    return videoDecoder.getDuration();
+bool MediaPlayer::isPaused() const {
+    return playing && paused;
 }
 
 double MediaPlayer::getCurrentPosition() const {
     return currentPosition;
 }
 
-sf::Vector2u MediaPlayer::getVideoSize() const {
-    return videoDecoder.getSize();
+double MediaPlayer::getDuration() const {
+    return duration;
 }
 
-double MediaPlayer::getFrameRate() const {
-    return videoDecoder.getFrameRate();
+sf::Vector2i MediaPlayer::getVideoSize() const {
+    return sf::Vector2i(videoDecoder->getWidth(), videoDecoder->getHeight());
 }
 
-unsigned int MediaPlayer::getAudioSampleRate() const {
-    return audioDecoder.getSampleRate();
+void MediaPlayer::setVolume(float volume) {
+    // Clamp volume between 0 and 100
+    this->volume = std::max<float>(0.0f, std::min<float>(volume, 100.0f));
+
+    // Update sound volume
+    sound.setVolume(this->volume);
 }
 
-unsigned int MediaPlayer::getAudioChannelCount() const {
-    return audioDecoder.getChannelCount();
+float MediaPlayer::getVolume() const {
+    return volume;
 }
 
-bool MediaPlayer::getCurrentFrame(sf::Texture& texture) {
-    std::lock_guard<std::mutex> lock(frameMutex);
-
-    if (!newFrameAvailable) {
-        return false;
-    }
-
-    texture = currentFrame.texture;
-    newFrameAvailable = false;
-
-    return true;
-}
-
-void MediaPlayer::update() {
-    // Update position if playing
-    if (playing) {
-        updatePosition();
-    }
-
-    // Get next video frame if available
-    VideoFrame frame;
-    if (videoDecoder.getNextFrame(frame)) {
-        std::lock_guard<std::mutex> lock(frameMutex);
-        currentFrame = frame;
-        newFrameAvailable = true;
-
-        // Call frame ready callback
-        if (frameReadyCallback) {
-            frameReadyCallback();
-        }
-    }
+const sf::Texture& MediaPlayer::getCurrentFrame() const {
+    return currentFrame;
 }
 
 void MediaPlayer::setPlaybackStartCallback(std::function<void()> callback) {
@@ -306,6 +253,10 @@ void MediaPlayer::setPlaybackStopCallback(std::function<void()> callback) {
     playbackStopCallback = std::move(callback);
 }
 
+void MediaPlayer::setPlaybackEndCallback(std::function<void()> callback) {
+    playbackEndCallback = std::move(callback);
+}
+
 void MediaPlayer::setPositionChangeCallback(std::function<void(double)> callback) {
     positionChangeCallback = std::move(callback);
 }
@@ -315,23 +266,209 @@ void MediaPlayer::setFrameReadyCallback(std::function<void()> callback) {
 }
 
 void MediaPlayer::setErrorCallback(std::function<void(const MediaPlayerException&)> callback) {
-    ErrorHandler::getInstance().setErrorCallback(std::move(callback));
+    errorCallback = std::move(callback);
 }
 
-void MediaPlayer::updatePosition() {
-    if (playing) {
-        // Update position based on elapsed time
-        double current = currentPosition.load();
-        double newPosition = current + positionClock.restart().asSeconds();
-        currentPosition.store(newPosition);
+void MediaPlayer::update() {
+    // This method should be called regularly from the main thread
+    // to update UI and handle events
+
+    // Check for end of playback
+    checkEndOfPlayback();
+
+    // Update current position based on audio playback
+    updateCurrentPosition();
+}
+
+void MediaPlayer::playbackLoop() {
+    try {
+        // Reset frame clock
+        frameClock.restart();
+
+        // Prepare initial audio
+        if (audioDecoder->isOpen()) {
+            decodeNextAudioChunk();
+        }
+
+        // Decode first video frame
+        decodeNextVideoFrame();
+
+        // Main playback loop
+        while (threadRunning && playing) {
+            // Check if paused
+            if (paused) {
+                // Sleep while paused
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                continue;
+            }
+
+            // Get elapsed time since last frame
+            float elapsed = frameClock.getElapsedTime().asSeconds();
+
+            // Check if it's time for a new video frame
+            if (elapsed >= frameTime) {
+                // Decode next video frame
+                if (!decodeNextVideoFrame()) {
+                    // End of video
+                    break;
+                }
+
+                // Reset frame clock
+                frameClock.restart();
+            }
+
+            // Check if we need more audio
+            if (audioDecoder->isOpen() && sound.getStatus() != sf::Sound::Playing) {
+                if (!decodeNextAudioChunk()) {
+                    // End of audio
+                    break;
+                }
+            }
+
+            // Sleep a bit to avoid using too much CPU
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        // Playback ended
+        if (threadRunning) {
+            // Only trigger end callback if we weren't stopped manually
+            if (playbackEndCallback) {
+                playbackEndCallback();
+            }
+        }
+
+        // Reset state
+        playing = false;
+        paused = false;
+        threadRunning = false;
+    } catch (const std::exception& e) {
+        handleError(MediaPlayerException::PLAYBACK_ERROR, "Exception in playback thread: " + std::string(e.what()));
+
+        // Reset state
+        playing = false;
+        paused = false;
+        threadRunning = false;
+    }
+}
+
+bool MediaPlayer::decodeNextVideoFrame() {
+    try {
+        // Decode next video frame
+        if (!videoDecoder->decodeNextFrame()) {
+            return false;
+        }
+
+        // Get frame data
+        const uint8_t* frameData = videoDecoder->getFrameData();
+        int width = videoDecoder->getWidth();
+        int height = videoDecoder->getHeight();
+
+        // Create image from frame data
+        sf::Image image;
+        image.create(width, height, frameData);
+
+        // Update current frame
+        frameMutex.lock();
+        currentFrame.loadFromImage(image);
+        frameMutex.unlock();
+
+        // Get frame time (time until next frame)
+        frameTime = videoDecoder->getFrameTime();
+
+        // Update current position
+        currentPosition = videoDecoder->getCurrentPosition();
+
+        // Call frame ready callback
+        if (frameReadyCallback) {
+            frameReadyCallback();
+        }
+
+        // Call position change callback
+        if (positionChangeCallback) {
+            positionChangeCallback(currentPosition);
+        }
+
+        return true;
+    } catch (const std::exception& e) {
+        handleError(MediaPlayerException::VIDEO_ERROR, "Error decoding video frame: " + std::string(e.what()));
+        return false;
+    }
+}
+
+bool MediaPlayer::decodeNextAudioChunk() {
+    try {
+        if (!audioDecoder->isOpen()) {
+            return true;
+        }
+
+        // Decode audio samples
+        audioSamples.clear();
+        if (!audioDecoder->decodeAudioSamples(audioSamples, 4096)) {
+            return false;
+        }
+
+        // Load audio samples into sound buffer
+        soundBuffer.loadFromSamples(audioSamples.data(), audioSamples.size(), audioDecoder->getChannels(), audioDecoder->getSampleRate());
+
+        // Set up sound
+        sound.setBuffer(soundBuffer);
+        sound.setVolume(volume);
+        sound.play();
+
+        return true;
+    } catch (const std::exception& e) {
+        handleError(MediaPlayerException::AUDIO_ERROR, "Error decoding audio: " + std::string(e.what()));
+        return false;
+    }
+}
+
+void MediaPlayer::updateCurrentPosition() {
+    if (!playing || paused) {
+        return;
     }
 
-    // Notify position change
-    notifyPositionChange();
-}
+    // Update position based on audio playback if available
+    if (audioDecoder->isOpen() && sound.getStatus() == sf::Sound::Playing) {
+        double audioPosition = audioDecoder->getCurrentPosition();
+        if (std::abs(audioPosition - currentPosition) > 0.5) {
+            currentPosition = audioPosition;
 
-void MediaPlayer::notifyPositionChange() {
-    if (positionChangeCallback) {
-        positionChangeCallback(currentPosition);
+            // Call position change callback
+            if (positionChangeCallback) {
+                positionChangeCallback(currentPosition);
+            }
+        }
     }
 }
+
+void MediaPlayer::checkEndOfPlayback() {
+    if (!playing) {
+        return;
+    }
+
+    // Check if we've reached the end of the media
+    if (currentPosition >= duration - 0.1) {
+        // Stop playback
+        stop();
+
+        // Call end callback
+        if (playbackEndCallback) {
+            playbackEndCallback();
+        }
+    }
+}
+
+void MediaPlayer::handleError(MediaPlayerException::ErrorCode code, const std::string& message) {
+    MediaPlayerException error(code, message);
+
+    // Print error to console
+    std::cerr << "MediaPlayer error: " << message << std::endl;
+
+    // Call error callback
+    if (errorCallback) {
+        errorCallback(error);
+    }
+}
+
+}  // namespace Core
+}  // namespace VideoPlayer

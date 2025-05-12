@@ -1,9 +1,9 @@
 #pragma once
 
-#include <string>
-#include <vector>
 #include <chrono>
 #include <nlohmann/json.hpp>
+#include <string>
+#include <vector>
 
 using json = nlohmann::json;
 
@@ -26,11 +26,11 @@ inline void to_json(json& j, const HistoryEntry& entry) {
     std::strftime(timeStr, sizeof(timeStr), "%FT%T%z", std::localtime(&time_t));
 
     j = json{
-        {"filePath", entry.filePath},
-        {"title", entry.title},
-        {"lastPlayed", timeStr},
+        {"filePath",     entry.filePath    },
+        {"title",        entry.title       },
+        {"lastPlayed",   timeStr           },
         {"lastPosition", entry.lastPosition},
-        {"playCount", entry.playCount}
+        {"playCount",    entry.playCount   }
     };
 }
 
@@ -50,7 +50,7 @@ inline void from_json(const json& j, HistoryEntry& entry) {
 }
 
 class HistoryManager {
-public:
+ public:
     // Singleton pattern
     static HistoryManager& getInstance();
 
@@ -74,7 +74,7 @@ public:
     void setHistoryPath(const std::string& path);
     std::string getHistoryPath() const;
 
-private:
+ private:
     HistoryManager();
     ~HistoryManager();
     HistoryManager(const HistoryManager&) = delete;
@@ -88,5 +88,5 @@ private:
     bool fromJson(const json& j);
 };
 
-} // namespace Storage
-} // namespace VideoPlayer
+}  // namespace Storage
+}  // namespace VideoPlayer

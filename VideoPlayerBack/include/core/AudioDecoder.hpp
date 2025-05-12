@@ -1,71 +1,80 @@
 #pragma once
 
-#include <SFML/Audio.hpp>
-#include <atomic>
-#include <queue>
-#include <thread>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
 
-#include "MediaDecoder.hpp"
+// Forward declarations for FFmpeg structures to avoid including FFmpeg headers in our header
+struct AVFormatContext;
+struct AVCodecContext;
+struct AVFrame;
+struct AVPacket;
+struct SwrContext;
 
-extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavutil/opt.h>
-#include <libswresample/swresample.h>
-}
+namespace VideoPlayer {
+namespace Core {
 
-struct AudioPacket {
-    std::vector<sf::Int16> samples;
-    double pts;  // Presentation timestamp
-};
-
-class AudioDecoder : public MediaDecoder {
+class AudioDecoder {
  public:
+    // Constructor and destructor
     AudioDecoder();
-    ~AudioDecoder() override;
+    ~AudioDecoder();
 
-    // Initialize the audio decoder after a file is opened
-    bool initialize();
+    // File operations
+    bool open(const std::string& filePath);
+    void close();
+    bool isOpen() const;
 
-    // Start the decoding thread
-    void start();
+    // Decoding
+    bool decodeAudioSamples(std::vector<short>& samples, int numSamples);
+    bool seek(double position);
 
-    // Stop the decoding thread and clean up resources
-    void stop();
+    // Audio information
+    int getSampleRate() const;
+    int getChannels() const;
+    double getCurrentPosition() const;
+    double getDuration() const;
 
-    // Get next audio packet
-    bool getNextPacket(AudioPacket& packet);
-
-    // Get audio properties
-    unsigned int getSampleRate() const;
-    unsigned int getChannelCount() const;
-
-    // Check if decoder has more packets
-    bool hasMorePackets() const;
-
-    // Pause/resume decoding
-    void setPaused(bool paused);
-    bool isPaused() const;
+    // Stream information
+    int getStreamIndex() const;
+    std::string getCodecName() const;
 
  private:
+    // FFmpeg contexts
+    AVFormatContext* formatContext;
     AVCodecContext* codecContext;
     SwrContext* swrContext;
-    AVStream* audioStream;
+
+    // FFmpeg frames and packets
+    AVFrame* frame;
+    AVPacket* packet;
+
+    // Stream information
     int audioStreamIndex;
+    double timeBase;
+    double duration;
+    double currentPosition;
 
-    std::queue<AudioPacket> packetQueue;
-    std::mutex queueMutex;
-    std::condition_variable queueCondition;
+    // Audio parameters
+    int sampleRate;
+    int channels;
 
-    std::thread decodingThread;
-    std::atomic<bool> running;
-    std::atomic<bool> paused;
+    // Buffering
+    std::vector<short> audioBuffer;
+    size_t bufferPosition;
 
-    // Maximum number of packets to keep in queue
-    static constexpr size_t MAX_QUEUE_SIZE = 100;
+    // Mutex for thread safety
+    std::mutex mutex;
 
-    // Decoding thread function
-    void decodingLoop();
-
-    // Convert AVFrame to audio samples
-    bool convertFrameToSamples(AVFrame* frame, std::vector<sf::Int16>& samples);
+    // Internal methods
+    bool initializeDecoder(const std::string& filePath);
+    void cleanupDecoder();
+    bool readFrame();
+    bool decodePacket();
+    bool convertFrame(std::vector<short>& outSamples);
+    void updatePosition();
 };
+
+}  // namespace Core
+}  // namespace VideoPlayer

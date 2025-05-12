@@ -1,73 +1,82 @@
 #pragma once
 
-#include <SFML/Graphics.hpp>
-#include <atomic>
-#include <queue>
-#include <thread>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
 
-#include "MediaDecoder.hpp"
+// Forward declarations for FFmpeg structures to avoid including FFmpeg headers in our header
+struct AVFormatContext;
+struct AVCodecContext;
+struct AVFrame;
+struct AVPacket;
+struct SwsContext;
 
-extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavutil/imgutils.h>
-#include <libswscale/swscale.h>
-}
+namespace VideoPlayer {
+namespace Core {
 
-struct VideoFrame {
-    sf::Texture texture;
-    double pts;  // Presentation timestamp
-};
-
-class VideoDecoder : public MediaDecoder {
+class VideoDecoder {
  public:
+    // Constructor and destructor
     VideoDecoder();
-    ~VideoDecoder() override;
+    ~VideoDecoder();
 
-    // Initialize the video decoder after a file is opened
-    bool initialize();
+    // File operations
+    bool open(const std::string& filePath);
+    void close();
+    bool isOpen() const;
 
-    // Start the decoding thread
-    void start();
+    // Decoding
+    bool decodeNextFrame();
+    bool seek(double position);
 
-    // Stop the decoding thread and clean up resources
-    void stop();
+    // Frame information
+    const uint8_t* getFrameData() const;
+    int getWidth() const;
+    int getHeight() const;
+    double getFrameTime() const;
+    double getCurrentPosition() const;
+    double getDuration() const;
 
-    // Get next video frame
-    bool getNextFrame(VideoFrame& frame);
-
-    // Get video dimensions
-    sf::Vector2u getSize() const;
-
-    // Get frame rate
+    // Stream information
+    int getStreamIndex() const;
     double getFrameRate() const;
-
-    // Check if decoder has more frames
-    bool hasMoreFrames() const;
-
-    // Pause/resume decoding
-    void setPaused(bool paused);
-    bool isPaused() const;
+    std::string getCodecName() const;
 
  private:
+    // FFmpeg contexts
+    AVFormatContext* formatContext;
     AVCodecContext* codecContext;
     SwsContext* swsContext;
-    AVStream* videoStream;
+
+    // FFmpeg frames and packets
+    AVFrame* frame;
+    AVFrame* rgbFrame;
+    AVPacket* packet;
+
+    // Stream information
     int videoStreamIndex;
+    double frameRate;
+    double timeBase;
+    double duration;
+    double currentPosition;
 
-    std::queue<VideoFrame> frameQueue;
-    std::mutex queueMutex;
-    std::condition_variable queueCondition;
+    // Frame data
+    std::vector<uint8_t> frameBuffer;
+    int width;
+    int height;
 
-    std::thread decodingThread;
-    std::atomic<bool> running;
-    std::atomic<bool> paused;
+    // Mutex for thread safety
+    std::mutex mutex;
 
-    // Maximum number of frames to keep in queue
-    static constexpr size_t MAX_QUEUE_SIZE = 30;
-
-    // Decoding thread function
-    void decodingLoop();
-
-    // Convert AVFrame to SFML Texture
-    bool convertFrameToTexture(AVFrame* frame, sf::Texture& texture);
+    // Internal methods
+    bool initializeDecoder(const std::string& filePath);
+    void cleanupDecoder();
+    bool readFrame();
+    bool decodePacket();
+    bool convertFrame();
+    void updatePosition();
 };
+
+}  // namespace Core
+}  // namespace VideoPlayer

@@ -1,7 +1,9 @@
 #include "../../include/storage/HistoryManager.hpp"
-#include <fstream>
-#include <filesystem>
+
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+
 #include "../../include/core/ErrorHandler.hpp"
 
 namespace fs = std::filesystem;
@@ -57,10 +59,8 @@ void HistoryManager::updateEntry(const std::string& filePath, double position) {
 }
 
 void HistoryManager::removeEntry(const std::string& filePath) {
-    history.erase(
-        std::remove_if(history.begin(), history.end(),
-            [&filePath](const HistoryEntry& entry) { return entry.filePath == filePath; }),
-        history.end());
+    history.erase(std::remove_if(history.begin(), history.end(), [&filePath](const HistoryEntry& entry) { return entry.filePath == filePath; }),
+                  history.end());
 }
 
 void HistoryManager::clearHistory() {
@@ -70,10 +70,7 @@ void HistoryManager::clearHistory() {
 std::vector<HistoryEntry> HistoryManager::getRecentEntries(size_t count) const {
     // Sort by last played time (most recent first)
     std::vector<HistoryEntry> sorted = history;
-    std::sort(sorted.begin(), sorted.end(),
-        [](const HistoryEntry& a, const HistoryEntry& b) {
-            return a.lastPlayed > b.lastPlayed;
-        });
+    std::sort(sorted.begin(), sorted.end(), [](const HistoryEntry& a, const HistoryEntry& b) { return a.lastPlayed > b.lastPlayed; });
 
     // Return the requested number of entries
     if (sorted.size() > count) {
@@ -86,10 +83,7 @@ std::vector<HistoryEntry> HistoryManager::getRecentEntries(size_t count) const {
 std::vector<HistoryEntry> HistoryManager::getMostPlayedEntries(size_t count) const {
     // Sort by play count (most played first)
     std::vector<HistoryEntry> sorted = history;
-    std::sort(sorted.begin(), sorted.end(),
-        [](const HistoryEntry& a, const HistoryEntry& b) {
-            return a.playCount > b.playCount;
-        });
+    std::sort(sorted.begin(), sorted.end(), [](const HistoryEntry& a, const HistoryEntry& b) { return a.playCount > b.playCount; });
 
     // Return the requested number of entries
     if (sorted.size() > count) {
@@ -132,14 +126,15 @@ bool HistoryManager::saveHistory(const std::string& filename) {
 
         std::ofstream file(path);
         if (!file.is_open()) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to open history file for writing: " + path);
+            Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR,
+                                                          "Failed to open history file for writing: " + path);
             return false;
         }
 
-        file << toJson().dump(4); // Pretty print with 4-space indentation
+        file << toJson().dump(4);  // Pretty print with 4-space indentation
         return true;
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Error saving history: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Error saving history: " + std::string(e.what()));
         return false;
     }
 }
@@ -156,7 +151,7 @@ bool HistoryManager::loadHistory(const std::string& filename) {
 
         std::ifstream file(path);
         if (!file.is_open()) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to open history file: " + path);
+            Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Failed to open history file: " + path);
             return false;
         }
 
@@ -164,7 +159,7 @@ bool HistoryManager::loadHistory(const std::string& filename) {
         file >> j;
         return fromJson(j);
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Error loading history: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Error loading history: " + std::string(e.what()));
         return false;
     }
 }
@@ -202,10 +197,11 @@ bool HistoryManager::fromJson(const json& j) {
 
         return true;
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Error parsing history JSON: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR,
+                                                      "Error parsing history JSON: " + std::string(e.what()));
         return false;
     }
 }
 
-} // namespace Storage
-} // namespace VideoPlayer
+}  // namespace Storage
+}  // namespace VideoPlayer

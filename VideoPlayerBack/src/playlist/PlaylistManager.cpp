@@ -1,6 +1,8 @@
 #include "../../include/playlist/PlaylistManager.hpp"
-#include <fstream>
+
 #include <filesystem>
+#include <fstream>
+
 #include "../../include/core/ErrorHandler.hpp"
 #include "../../include/storage/ConfigManager.hpp"
 
@@ -81,8 +83,8 @@ bool PlaylistManager::savePlaylist(std::shared_ptr<Playlist> playlist, const std
             try {
                 fs::create_directories(dirPath);
             } catch (const std::exception& e) {
-                ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR,
-                    "Failed to create playlist directory: " + std::string(e.what()));
+                Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR,
+                                                              "Failed to create playlist directory: " + std::string(e.what()));
                 return false;
             }
         }
@@ -248,8 +250,8 @@ bool PlaylistManager::fromJson(const json& j) {
 
         return true;
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR,
-            "Error parsing playlist manager state: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR,
+                                                      "Error parsing playlist manager state: " + std::string(e.what()));
         return false;
     }
 }
@@ -268,8 +270,8 @@ bool PlaylistManager::saveState(const std::string& filename) {
             try {
                 fs::create_directories(dirPath);
             } catch (const std::exception& e) {
-                ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR,
-                    "Failed to create playlist directory: " + std::string(e.what()));
+                Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR,
+                                                              "Failed to create playlist directory: " + std::string(e.what()));
                 return false;
             }
         }
@@ -280,16 +282,16 @@ bool PlaylistManager::saveState(const std::string& filename) {
     try {
         std::ofstream file(path);
         if (!file.is_open()) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to open file for writing: " + path);
+            Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Failed to open file for writing: " + path);
             return false;
         }
 
         json j = toJson();
-        file << j.dump(4); // Pretty print with 4-space indentation
+        file << j.dump(4);  // Pretty print with 4-space indentation
         return true;
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR,
-            "Error saving playlist manager state: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR,
+                                                      "Error saving playlist manager state: " + std::string(e.what()));
         return false;
     }
 }
@@ -316,7 +318,7 @@ bool PlaylistManager::loadState(const std::string& filename) {
 
         std::ifstream file(path);
         if (!file.is_open()) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to open file for reading: " + path);
+            Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Failed to open file for reading: " + path);
             return false;
         }
 
@@ -324,11 +326,11 @@ bool PlaylistManager::loadState(const std::string& filename) {
         file >> j;
         return fromJson(j);
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR,
-            "Error loading playlist manager state: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR,
+                                                      "Error loading playlist manager state: " + std::string(e.what()));
         return false;
     }
 }
 
-} // namespace Playlist
-} // namespace VideoPlayer
+}  // namespace Playlist
+}  // namespace VideoPlayer

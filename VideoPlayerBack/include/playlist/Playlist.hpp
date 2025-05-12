@@ -1,9 +1,9 @@
 #pragma once
 
-#include <string>
-#include <vector>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <string>
+#include <vector>
 
 using json = nlohmann::json;
 
@@ -21,11 +21,11 @@ struct PlaylistItem {
 // JSON serialization for PlaylistItem
 inline void to_json(json& j, const PlaylistItem& item) {
     j = json{
-        {"path", item.path},
-        {"title", item.title},
-        {"duration", item.duration},
+        {"path",          item.path         },
+        {"title",         item.title        },
+        {"duration",      item.duration     },
         {"thumbnailPath", item.thumbnailPath},
-        {"lastPosition", item.lastPosition}
+        {"lastPosition",  item.lastPosition }
     };
 }
 
@@ -38,7 +38,7 @@ inline void from_json(const json& j, PlaylistItem& item) {
 }
 
 class Playlist {
-public:
+ public:
     Playlist(const std::string& name = "New Playlist");
     ~Playlist();
 
@@ -69,7 +69,7 @@ public:
     json toJson() const;
     bool fromJson(const json& j);
 
-private:
+ private:
     std::string name;
     std::vector<PlaylistItem> items;
 
@@ -77,5 +77,5 @@ private:
     std::string generateThumbnail(const std::string& videoPath);
 };
 
-} // namespace Playlist
-} // namespace VideoPlayer
+}  // namespace Playlist
+}  // namespace VideoPlayer

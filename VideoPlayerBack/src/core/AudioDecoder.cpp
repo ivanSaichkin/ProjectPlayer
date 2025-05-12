@@ -1,328 +1,448 @@
 #include "../../include/core/AudioDecoder.hpp"
 
+#include <algorithm>
 #include <iostream>
+#include <stdexcept>
+
+// FFmpeg includes
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/error.h>
+#include <libavutil/opt.h>
+#include <libavutil/time.h>
+#include <libswresample/swresample.h>
+}
+
+namespace VideoPlayer {
+namespace Core {
+
+// Helper function to convert FFmpeg error codes to string
+std::string av_error_to_string(int errnum) {
+    char errbuf[AV_ERROR_MAX_STRING_SIZE];
+    av_strerror(errnum, errbuf, AV_ERROR_MAX_STRING_SIZE);
+    return std::string(errbuf);
+}
 
 AudioDecoder::AudioDecoder()
-    : MediaDecoder(), codecContext(nullptr), swrContext(nullptr), audioStream(nullptr), audioStreamIndex(-1), running(false), paused(false) {
+    : formatContext(nullptr),
+      codecContext(nullptr),
+      swrContext(nullptr),
+      frame(nullptr),
+      packet(nullptr),
+      audioStreamIndex(-1),
+      timeBase(0.0),
+      duration(0.0),
+      currentPosition(0.0),
+      sampleRate(0),
+      channels(0),
+      bufferPosition(0) {
+    // Initialize FFmpeg network functionality
+    static bool ffmpegNetworkInitialized = false;
+    if (!ffmpegNetworkInitialized) {
+        avformat_network_init();
+        ffmpegNetworkInitialized = true;
+    }
 }
 
 AudioDecoder::~AudioDecoder() {
-    stop();
+    close();
+}
 
+bool AudioDecoder::open(const std::string& filePath) {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    // Close any existing decoder
+    close();
+
+    // Initialize decoder
+    return initializeDecoder(filePath);
+}
+
+void AudioDecoder::close() {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    // Clean up decoder
+    cleanupDecoder();
+
+    // Reset state
+    audioStreamIndex = -1;
+    timeBase = 0.0;
+    duration = 0.0;
+    currentPosition = 0.0;
+    sampleRate = 0;
+    channels = 0;
+    audioBuffer.clear();
+    bufferPosition = 0;
+}
+
+bool AudioDecoder::isOpen() const {
+    return formatContext != nullptr && codecContext != nullptr;
+}
+
+bool AudioDecoder::decodeAudioSamples(std::vector<short>& samples, int numSamples) {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    if (!isOpen()) {
+        return false;
+    }
+
+    // Clear output samples
+    samples.clear();
+
+    // Check if we have enough samples in the buffer
+    if (audioBuffer.size() - bufferPosition >= static_cast<size_t>(numSamples)) {
+        // Copy samples from buffer
+        samples.insert(samples.end(), audioBuffer.begin() + bufferPosition, audioBuffer.begin() + bufferPosition + numSamples);
+
+        // Update buffer position
+        bufferPosition += numSamples;
+
+        // Clear buffer if we've used all samples
+        if (bufferPosition >= audioBuffer.size()) {
+            audioBuffer.clear();
+            bufferPosition = 0;
+        }
+
+        return true;
+    }
+
+    // Copy remaining samples from buffer
+    if (bufferPosition < audioBuffer.size()) {
+        samples.insert(samples.end(), audioBuffer.begin() + bufferPosition, audioBuffer.end());
+
+        // Clear buffer
+        audioBuffer.clear();
+        bufferPosition = 0;
+    }
+
+    // Decode more samples
+    while (samples.size() < static_cast<size_t>(numSamples)) {
+        // Read frames until we get an audio frame
+        bool frameDecoded = false;
+        while (!frameDecoded && readFrame()) {
+            // Check if packet is from audio stream
+            if (packet->stream_index == audioStreamIndex) {
+                // Decode packet
+                if (decodePacket()) {
+                    // Convert frame to PCM samples
+                    std::vector<short> frameSamples;
+                    if (convertFrame(frameSamples)) {
+                        // Update position
+                        updatePosition();
+
+                        // Add samples to output
+                        samples.insert(samples.end(), frameSamples.begin(), frameSamples.end());
+
+                        frameDecoded = true;
+                    }
+                }
+            }
+
+            // Free packet
+            av_packet_unref(packet);
+        }
+
+        // If we couldn't decode a frame, we've reached the end of the stream
+        if (!frameDecoded) {
+            break;
+        }
+    }
+
+    // If we have more samples than requested, store the excess in the buffer
+    if (samples.size() > static_cast<size_t>(numSamples)) {
+        audioBuffer.insert(audioBuffer.end(), samples.begin() + numSamples, samples.end());
+
+        // Truncate output samples
+        samples.resize(numSamples);
+
+        bufferPosition = 0;
+    }
+
+    return !samples.empty();
+}
+
+bool AudioDecoder::seek(double position) {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    if (!isOpen()) {
+        return false;
+    }
+
+    // Convert position to stream time base
+    int64_t timestamp = static_cast<int64_t>(position / timeBase);
+
+    // Seek to timestamp
+    int result = av_seek_frame(formatContext, audioStreamIndex, timestamp, AVSEEK_FLAG_BACKWARD);
+    if (result < 0) {
+        std::cerr << "Error seeking: " << av_error_to_string(result) << std::endl;
+        return false;
+    }
+
+    // Flush codec buffers
+    avcodec_flush_buffers(codecContext);
+
+    // Clear audio buffer
+    audioBuffer.clear();
+    bufferPosition = 0;
+
+    // Update position
+    currentPosition = position;
+
+    return true;
+}
+
+int AudioDecoder::getSampleRate() const {
+    return sampleRate;
+}
+
+int AudioDecoder::getChannels() const {
+    return channels;
+}
+
+double AudioDecoder::getCurrentPosition() const {
+    return currentPosition;
+}
+
+double AudioDecoder::getDuration() const {
+    return duration;
+}
+
+int AudioDecoder::getStreamIndex() const {
+    return audioStreamIndex;
+}
+
+std::string AudioDecoder::getCodecName() const {
+    if (!isOpen()) {
+        return "";
+    }
+
+    return avcodec_get_name(codecContext->codec_id);
+}
+
+bool AudioDecoder::initializeDecoder(const std::string& filePath) {
+    try {
+        // Open input file
+        int result = avformat_open_input(&formatContext, filePath.c_str(), nullptr, nullptr);
+        if (result < 0) {
+            throw std::runtime_error("Could not open input file: " + av_error_to_string(result));
+        }
+
+        // Find stream info
+        result = avformat_find_stream_info(formatContext, nullptr);
+        if (result < 0) {
+            throw std::runtime_error("Could not find stream info: " + av_error_to_string(result));
+        }
+
+        // Find audio stream
+        audioStreamIndex = -1;
+        for (unsigned int i = 0; i < formatContext->nb_streams; i++) {
+            if (formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+                audioStreamIndex = i;
+                break;
+            }
+        }
+
+        if (audioStreamIndex == -1) {
+            throw std::runtime_error("Could not find audio stream");
+        }
+
+        // Get codec parameters
+        AVCodecParameters* codecParams = formatContext->streams[audioStreamIndex]->codecpar;
+
+        // Find decoder
+        const AVCodec* codec = avcodec_find_decoder(codecParams->codec_id);
+        if (!codec) {
+            throw std::runtime_error("Unsupported codec");
+        }
+
+        // Allocate codec context
+        codecContext = avcodec_alloc_context3(codec);
+        if (!codecContext) {
+            throw std::runtime_error("Could not allocate codec context");
+        }
+
+        // Copy codec parameters to codec context
+        result = avcodec_parameters_to_context(codecContext, codecParams);
+        if (result < 0) {
+            throw std::runtime_error("Could not copy codec parameters: " + av_error_to_string(result));
+        }
+
+        // Open codec
+        result = avcodec_open2(codecContext, codec, nullptr);
+        if (result < 0) {
+            throw std::runtime_error("Could not open codec: " + av_error_to_string(result));
+        }
+
+        // Get audio parameters
+        sampleRate = codecContext->sample_rate;
+        channels = codecContext->channels;
+
+        // Get time base
+        timeBase =
+            static_cast<double>(formatContext->streams[audioStreamIndex]->time_base.num) / formatContext->streams[audioStreamIndex]->time_base.den;
+
+        // Get duration
+        if (formatContext->duration != AV_NOPTS_VALUE) {
+            duration = static_cast<double>(formatContext->duration) / AV_TIME_BASE;
+        } else if (formatContext->streams[audioStreamIndex]->duration != AV_NOPTS_VALUE) {
+            duration = static_cast<double>(formatContext->streams[audioStreamIndex]->duration) * timeBase;
+        } else {
+            duration = 0.0;
+        }
+
+        // Allocate frame
+        frame = av_frame_alloc();
+        if (!frame) {
+            throw std::runtime_error("Could not allocate frame");
+        }
+
+        // Allocate packet
+        packet = av_packet_alloc();
+        if (!packet) {
+            throw std::runtime_error("Could not allocate packet");
+        }
+
+        // Initialize resampler
+        swrContext = swr_alloc();
+        if (!swrContext) {
+            throw std::runtime_error("Could not allocate resampler context");
+        }
+
+        // Set resampler options
+        av_opt_set_int(swrContext, "in_channel_layout", codecContext->channel_layout, 0);
+        av_opt_set_int(swrContext, "out_channel_layout", AV_CH_LAYOUT_STEREO, 0);
+        av_opt_set_int(swrContext, "in_sample_rate", codecContext->sample_rate, 0);
+        av_opt_set_int(swrContext, "out_sample_rate", codecContext->sample_rate, 0);
+        av_opt_set_sample_fmt(swrContext, "in_sample_fmt", codecContext->sample_fmt, 0);
+        av_opt_set_sample_fmt(swrContext, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
+
+        // Initialize resampler
+        result = swr_init(swrContext);
+        if (result < 0) {
+            throw std::runtime_error("Could not initialize resampler: " + av_error_to_string(result));
+        }
+
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Error initializing decoder: " << e.what() << std::endl;
+
+        // Clean up
+        cleanupDecoder();
+
+        return false;
+    }
+}
+
+void AudioDecoder::cleanupDecoder() {
+    // Free resampler context
     if (swrContext) {
         swr_free(&swrContext);
         swrContext = nullptr;
     }
 
+    // Free packet
+    if (packet) {
+        av_packet_free(&packet);
+        packet = nullptr;
+    }
+
+    // Free frame
+    if (frame) {
+        av_frame_free(&frame);
+        frame = nullptr;
+    }
+
+    // Close codec context
     if (codecContext) {
         avcodec_free_context(&codecContext);
         codecContext = nullptr;
     }
+
+    // Close format context
+    if (formatContext) {
+        avformat_close_input(&formatContext);
+        formatContext = nullptr;
+    }
 }
 
-bool AudioDecoder::initialize() {
-    std::lock_guard<std::mutex> lock(mutex);
-
-    if (!opened || !formatContext) {
+bool AudioDecoder::readFrame() {
+    if (!isOpen()) {
         return false;
     }
 
-    // Find audio stream
-    audioStreamIndex = findStream(AVMEDIA_TYPE_AUDIO);
-    if (audioStreamIndex < 0) {
-        // No audio stream, not an error but return false
-        return false;
-    }
+    // Free previous packet
+    av_packet_unref(packet);
 
-    audioStream = formatContext->streams[audioStreamIndex];
-
-    // Find decoder for the stream
-    const AVCodec* codec = avcodec_find_decoder(audioStream->codecpar->codec_id);
-    if (!codec) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::CODEC_ERROR, "Unsupported audio codec");
-        return false;
-    }
-
-    // Allocate codec context
-    codecContext = avcodec_alloc_context3(codec);
-    if (!codecContext) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to allocate audio codec context");
-        return false;
-    }
-
-    // Copy codec parameters to context
-    if (avcodec_parameters_to_context(codecContext, audioStream->codecpar) < 0) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to copy audio codec parameters to context");
-        return false;
-    }
-
-    // Open codec
-    if (avcodec_open2(codecContext, codec, nullptr) < 0) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to open audio codec");
-        return false;
-    }
-
-    // Create resampler context
-    swrContext = swr_alloc();
-    if (!swrContext) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to allocate audio resampler context");
-        return false;
-    }
-
-    // Set resampler options
-    av_opt_set_int(swrContext, "in_channel_layout", codecContext->channel_layout, 0);
-    av_opt_set_int(swrContext, "out_channel_layout", AV_CH_LAYOUT_STEREO, 0);
-    av_opt_set_int(swrContext, "in_sample_rate", codecContext->sample_rate, 0);
-    av_opt_set_int(swrContext, "out_sample_rate", 44100, 0);
-    av_opt_set_sample_fmt(swrContext, "in_sample_fmt", codecContext->sample_fmt, 0);
-    av_opt_set_sample_fmt(swrContext, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
-
-    // Initialize resampler
-    if (swr_init(swrContext) < 0) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to initialize audio resampler");
+    // Read next packet
+    int result = av_read_frame(formatContext, packet);
+    if (result < 0) {
         return false;
     }
 
     return true;
 }
 
-void AudioDecoder::start() {
-    std::lock_guard<std::mutex> lock(mutex);
+bool AudioDecoder::decodePacket() {
+    if (!isOpen()) {
+        return false;
+    }
 
-    if (running) {
+    // Send packet to decoder
+    int result = avcodec_send_packet(codecContext, packet);
+    if (result < 0) {
+        std::cerr << "Error sending packet to decoder: " << av_error_to_string(result) << std::endl;
+        return false;
+    }
+
+    // Receive frame from decoder
+    result = avcodec_receive_frame(codecContext, frame);
+    if (result < 0) {
+        if (result != AVERROR(EAGAIN) && result != AVERROR_EOF) {
+            std::cerr << "Error receiving frame from decoder: " << av_error_to_string(result) << std::endl;
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool AudioDecoder::convertFrame(std::vector<short>& outSamples) {
+    if (!isOpen()) {
+        return false;
+    }
+
+    // Calculate number of samples
+    int numSamples = frame->nb_samples * channels;
+
+    // Resize output buffer
+    outSamples.resize(numSamples);
+
+    // Convert audio samples
+    uint8_t* outBuffer = reinterpret_cast<uint8_t*>(outSamples.data());
+
+    // Convert samples
+    int result = swr_convert(swrContext, &outBuffer, frame->nb_samples, (const uint8_t**)frame->data, frame->nb_samples);
+
+    if (result < 0) {
+        std::cerr << "Error converting audio: " << av_error_to_string(result) << std::endl;
+        return false;
+    }
+
+    // Resize output to actual number of converted samples
+    outSamples.resize(result * channels);
+
+    return true;
+}
+
+void AudioDecoder::updatePosition() {
+    if (!isOpen() || frame->pts == AV_NOPTS_VALUE) {
         return;
     }
 
-    running = true;
-    paused = false;
-
-    // Clear any existing packets
-    while (!packetQueue.empty()) {
-        packetQueue.pop();
-    }
-
-    // Start decoding thread
-    decodingThread = std::thread(&AudioDecoder::decodingLoop, this);
+    // Calculate current position
+    currentPosition = static_cast<double>(frame->pts) * timeBase;
 }
 
-void AudioDecoder::stop() {
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-
-        if (!running) {
-            return;
-        }
-
-        running = false;
-        paused = false;
-    }
-
-    // Notify condition variable to wake up thread
-    queueCondition.notify_all();
-
-    // Wait for thread to finish
-    if (decodingThread.joinable()) {
-        decodingThread.join();
-    }
-
-    // Clear queue
-    std::lock_guard<std::mutex> lock(queueMutex);
-    while (!packetQueue.empty()) {
-        packetQueue.pop();
-    }
-}
-
-bool AudioDecoder::getNextPacket(AudioPacket& packet) {
-    std::lock_guard<std::mutex> lock(queueMutex);
-
-    if (packetQueue.empty()) {
-        return false;
-    }
-
-    packet = packetQueue.front();
-    packetQueue.pop();
-
-    // Notify decoding thread that a packet was consumed
-    queueCondition.notify_one();
-
-    return true;
-}
-
-unsigned int AudioDecoder::getSampleRate() const {
-    if (!codecContext) {
-        return 44100;  // Default sample rate
-    }
-
-    return 44100;  // We're resampling to 44100 Hz
-}
-
-unsigned int AudioDecoder::getChannelCount() const {
-    if (!codecContext) {
-        return 2;  // Default to stereo
-    }
-
-    return 2;  // We're resampling to stereo
-}
-
-bool AudioDecoder::hasMorePackets() const {
-    return running && opened;
-}
-
-void AudioDecoder::setPaused(bool paused) {
-    this->paused = paused;
-
-    if (!paused) {
-        // Notify thread to continue if it was waiting
-        queueCondition.notify_one();
-    }
-}
-
-bool AudioDecoder::isPaused() const {
-    return paused;
-}
-
-void AudioDecoder::decodingLoop() {
-    AVPacket* packet = av_packet_alloc();
-    AVFrame* frame = av_frame_alloc();
-
-    if (!packet || !frame) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to allocate audio packet or frame");
-
-        if (packet)
-            av_packet_free(&packet);
-        if (frame)
-            av_frame_free(&frame);
-
-        return;
-    }
-
-    while (running) {
-        // Check if paused
-        if (paused) {
-            std::unique_lock<std::mutex> lock(mutex);
-            queueCondition.wait(lock, [this] { return !paused || !running; });
-
-            if (!running) {
-                break;
-            }
-
-            continue;
-        }
-
-        // Check if queue is full
-        {
-            std::unique_lock<std::mutex> lock(queueMutex);
-            if (packetQueue.size() >= MAX_QUEUE_SIZE) {
-                queueCondition.wait(lock, [this] { return packetQueue.size() < MAX_QUEUE_SIZE || !running; });
-
-                if (!running) {
-                    break;
-                }
-
-                continue;
-            }
-        }
-
-        // Read packet
-        int readResult;
-        {
-            std::lock_guard<std::mutex> lock(mutex);
-
-            if (!formatContext) {
-                break;
-            }
-
-            readResult = av_read_frame(formatContext, packet);
-        }
-
-        if (readResult < 0) {
-            // End of file or error
-            if (readResult == AVERROR_EOF) {
-                // End of file, loop back to beginning
-                seek(0);
-                continue;
-            } else {
-                // Error
-                ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR,
-                                                        "Error reading audio frame: " + ErrorHandler::ffmpegErrorToString(readResult));
-                break;
-            }
-        }
-
-        // Check if this packet belongs to the audio stream
-        if (packet->stream_index != audioStreamIndex) {
-            av_packet_unref(packet);
-            continue;
-        }
-
-        // Send packet to decoder
-        int sendResult = avcodec_send_packet(codecContext, packet);
-        av_packet_unref(packet);
-
-        if (sendResult < 0) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR,
-                                                    "Error sending packet to audio decoder: " + ErrorHandler::ffmpegErrorToString(sendResult));
-            break;
-        }
-
-        // Receive frames from decoder
-        while (running) {
-            int receiveResult = avcodec_receive_frame(codecContext, frame);
-
-            if (receiveResult == AVERROR(EAGAIN) || receiveResult == AVERROR_EOF) {
-                // Need more packets or end of stream
-                break;
-            } else if (receiveResult < 0) {
-                // Error
-                ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Error receiving frame from audio decoder: " +
-                                                                                                 ErrorHandler::ffmpegErrorToString(receiveResult));
-                break;
-            }
-
-            // Convert frame to audio samples and add to queue
-            AudioPacket audioPacket;
-
-            // Calculate presentation timestamp in seconds
-            double pts = 0.0;
-            if (frame->pts != AV_NOPTS_VALUE) {
-                pts = frame->pts * av_q2d(audioStream->time_base);
-            }
-
-            audioPacket.pts = pts;
-
-            if (convertFrameToSamples(frame, audioPacket.samples)) {
-                std::lock_guard<std::mutex> lock(queueMutex);
-                packetQueue.push(audioPacket);
-            }
-
-            av_frame_unref(frame);
-        }
-    }
-
-    av_packet_free(&packet);
-    av_frame_free(&frame);
-}
-
-bool AudioDecoder::convertFrameToSamples(AVFrame* frame, std::vector<sf::Int16>& samples) {
-    // Calculate the number of samples to output
-    int outSamples =
-        av_rescale_rnd(swr_get_delay(swrContext, codecContext->sample_rate) + frame->nb_samples, 44100, codecContext->sample_rate, AV_ROUND_UP);
-
-    // Allocate buffer for resampled data
-    samples.resize(outSamples * 2);  // 2 channels (stereo)
-
-    // Resample
-    uint8_t* outBuffer = reinterpret_cast<uint8_t*>(samples.data());
-    int samplesResampled = swr_convert(swrContext, &outBuffer, outSamples, (const uint8_t**)frame->data, frame->nb_samples);
-
-    if (samplesResampled < 0) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR,
-                                                "Error resampling audio: " + ErrorHandler::ffmpegErrorToString(samplesResampled));
-        return false;
-    }
-
-    // Resize to actual number of samples
-    samples.resize(samplesResampled * 2);
-
-    return true;
-}
+}  // namespace Core
+}  // namespace VideoPlayer

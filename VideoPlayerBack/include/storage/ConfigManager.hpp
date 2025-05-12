@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
 #include <map>
 #include <nlohmann/json.hpp>
+#include <string>
 
 using json = nlohmann::json;
 
@@ -10,7 +10,7 @@ namespace VideoPlayer {
 namespace Storage {
 
 class ConfigManager {
-public:
+ public:
     // Singleton pattern
     static ConfigManager& getInstance();
 
@@ -33,7 +33,7 @@ public:
     void setConfigPath(const std::string& path);
     std::string getConfigPath() const;
 
-private:
+ private:
     ConfigManager();
     ~ConfigManager();
     ConfigManager(const ConfigManager&) = delete;
@@ -82,5 +82,5 @@ inline void ConfigManager::setValue(const std::string& key, const T& value) {
     config[key] = value;
 }
 
-} // namespace Storage
-} // namespace VideoPlayer
+}  // namespace Storage
+}  // namespace VideoPlayer

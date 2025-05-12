@@ -1,329 +1,402 @@
 #include "../../include/core/VideoDecoder.hpp"
 
 #include <iostream>
+#include <stdexcept>
+
+// FFmpeg includes
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/error.h>
+#include <libavutil/imgutils.h>
+#include <libavutil/time.h>
+#include <libswscale/swscale.h>
+}
+
+namespace VideoPlayer {
+namespace Core {
+
+// Helper function to convert FFmpeg error codes to string
+std::string av_error_to_string(int errnum) {
+    char errbuf[AV_ERROR_MAX_STRING_SIZE];
+    av_strerror(errnum, errbuf, AV_ERROR_MAX_STRING_SIZE);
+    return std::string(errbuf);
+}
 
 VideoDecoder::VideoDecoder()
-    : MediaDecoder(), codecContext(nullptr), swsContext(nullptr), videoStream(nullptr), videoStreamIndex(-1), running(false), paused(false) {
+    : formatContext(nullptr),
+      codecContext(nullptr),
+      swsContext(nullptr),
+      frame(nullptr),
+      rgbFrame(nullptr),
+      packet(nullptr),
+      videoStreamIndex(-1),
+      frameRate(0.0),
+      timeBase(0.0),
+      duration(0.0),
+      currentPosition(0.0),
+      width(0),
+      height(0) {
+    // Initialize FFmpeg network functionality
+    // Note: av_register_all() is deprecated in newer FFmpeg versions
+    static bool ffmpegNetworkInitialized = false;
+    if (!ffmpegNetworkInitialized) {
+        avformat_network_init();
+        ffmpegNetworkInitialized = true;
+    }
 }
 
 VideoDecoder::~VideoDecoder() {
-    stop();
+    close();
+}
 
+bool VideoDecoder::open(const std::string& filePath) {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    // Close any existing decoder
+    close();
+
+    // Initialize decoder
+    return initializeDecoder(filePath);
+}
+
+void VideoDecoder::close() {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    // Clean up decoder
+    cleanupDecoder();
+
+    // Reset state
+    videoStreamIndex = -1;
+    frameRate = 0.0;
+    timeBase = 0.0;
+    duration = 0.0;
+    currentPosition = 0.0;
+    width = 0;
+    height = 0;
+    frameBuffer.clear();
+}
+
+bool VideoDecoder::isOpen() const {
+    return formatContext != nullptr && codecContext != nullptr;
+}
+
+bool VideoDecoder::decodeNextFrame() {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    if (!isOpen()) {
+        return false;
+    }
+
+    // Read frames until we get a video frame
+    while (readFrame()) {
+        // Check if packet is from video stream
+        if (packet->stream_index == videoStreamIndex) {
+            // Decode packet
+            if (decodePacket()) {
+                // Convert frame to RGB
+                if (convertFrame()) {
+                    // Update position
+                    updatePosition();
+                    return true;
+                }
+            }
+        }
+
+        // Free packet
+        av_packet_unref(packet);
+    }
+
+    return false;
+}
+
+bool VideoDecoder::seek(double position) {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    if (!isOpen()) {
+        return false;
+    }
+
+    // Convert position to stream time base
+    int64_t timestamp = static_cast<int64_t>(position / timeBase);
+
+    // Seek to timestamp
+    int result = av_seek_frame(formatContext, videoStreamIndex, timestamp, AVSEEK_FLAG_BACKWARD);
+    if (result < 0) {
+        std::cerr << "Error seeking: " << av_error_to_string(result) << std::endl;
+        return false;
+    }
+
+    // Flush codec buffers
+    avcodec_flush_buffers(codecContext);
+
+    // Update position
+    currentPosition = position;
+
+    return true;
+}
+
+const uint8_t* VideoDecoder::getFrameData() const {
+    return frameBuffer.data();
+}
+
+int VideoDecoder::getWidth() const {
+    return width;
+}
+
+int VideoDecoder::getHeight() const {
+    return height;
+}
+
+double VideoDecoder::getFrameTime() const {
+    return 1.0 / frameRate;
+}
+
+double VideoDecoder::getCurrentPosition() const {
+    return currentPosition;
+}
+
+double VideoDecoder::getDuration() const {
+    return duration;
+}
+
+int VideoDecoder::getStreamIndex() const {
+    return videoStreamIndex;
+}
+
+double VideoDecoder::getFrameRate() const {
+    return frameRate;
+}
+
+std::string VideoDecoder::getCodecName() const {
+    if (!isOpen()) {
+        return "";
+    }
+
+    return avcodec_get_name(codecContext->codec_id);
+}
+
+bool VideoDecoder::initializeDecoder(const std::string& filePath) {
+    try {
+        // Open input file
+        int result = avformat_open_input(&formatContext, filePath.c_str(), nullptr, nullptr);
+        if (result < 0) {
+            throw std::runtime_error("Could not open input file: " + av_error_to_string(result));
+        }
+
+        // Find stream info
+        result = avformat_find_stream_info(formatContext, nullptr);
+        if (result < 0) {
+            throw std::runtime_error("Could not find stream info: " + av_error_to_string(result));
+        }
+
+        // Find video stream
+        videoStreamIndex = -1;
+        for (unsigned int i = 0; i < formatContext->nb_streams; i++) {
+            if (formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+                videoStreamIndex = i;
+                break;
+            }
+        }
+
+        if (videoStreamIndex == -1) {
+            throw std::runtime_error("Could not find video stream");
+        }
+
+        // Get codec parameters
+        AVCodecParameters* codecParams = formatContext->streams[videoStreamIndex]->codecpar;
+
+        // Find decoder
+        const AVCodec* codec = avcodec_find_decoder(codecParams->codec_id);
+        if (!codec) {
+            throw std::runtime_error("Unsupported codec");
+        }
+
+        // Allocate codec context
+        codecContext = avcodec_alloc_context3(codec);
+        if (!codecContext) {
+            throw std::runtime_error("Could not allocate codec context");
+        }
+
+        // Copy codec parameters to codec context
+        result = avcodec_parameters_to_context(codecContext, codecParams);
+        if (result < 0) {
+            throw std::runtime_error("Could not copy codec parameters: " + av_error_to_string(result));
+        }
+
+        // Open codec
+        result = avcodec_open2(codecContext, codec, nullptr);
+        if (result < 0) {
+            throw std::runtime_error("Could not open codec: " + av_error_to_string(result));
+        }
+
+        // Get video dimensions
+        width = codecContext->width;
+        height = codecContext->height;
+
+        // Get frame rate
+        AVRational frameRateRational = av_guess_frame_rate(formatContext, formatContext->streams[videoStreamIndex], nullptr);
+        frameRate = static_cast<double>(frameRateRational.num) / frameRateRational.den;
+
+        // Get time base
+        timeBase =
+            static_cast<double>(formatContext->streams[videoStreamIndex]->time_base.num) / formatContext->streams[videoStreamIndex]->time_base.den;
+
+        // Get duration
+        if (formatContext->duration != AV_NOPTS_VALUE) {
+            duration = static_cast<double>(formatContext->duration) / AV_TIME_BASE;
+        } else if (formatContext->streams[videoStreamIndex]->duration != AV_NOPTS_VALUE) {
+            duration = static_cast<double>(formatContext->streams[videoStreamIndex]->duration) * timeBase;
+        } else {
+            duration = 0.0;
+        }
+
+        // Allocate frames
+        frame = av_frame_alloc();
+        if (!frame) {
+            throw std::runtime_error("Could not allocate frame");
+        }
+
+        rgbFrame = av_frame_alloc();
+        if (!rgbFrame) {
+            throw std::runtime_error("Could not allocate RGB frame");
+        }
+
+        // Allocate packet
+        packet = av_packet_alloc();
+        if (!packet) {
+            throw std::runtime_error("Could not allocate packet");
+        }
+
+        // Initialize frame buffer
+        frameBuffer.resize(av_image_get_buffer_size(AV_PIX_FMT_RGBA, width, height, 1));
+
+        // Set up RGB frame
+        result = av_image_fill_arrays(rgbFrame->data, rgbFrame->linesize, frameBuffer.data(), AV_PIX_FMT_RGBA, width, height, 1);
+        if (result < 0) {
+            throw std::runtime_error("Could not set up RGB frame: " + av_error_to_string(result));
+        }
+
+        // Initialize swscale context
+        swsContext = sws_getContext(width, height, codecContext->pix_fmt, width, height, AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr);
+
+        if (!swsContext) {
+            throw std::runtime_error("Could not initialize swscale context");
+        }
+
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Error initializing decoder: " << e.what() << std::endl;
+
+        // Clean up
+        cleanupDecoder();
+
+        return false;
+    }
+}
+
+void VideoDecoder::cleanupDecoder() {
+    // Free swscale context
     if (swsContext) {
         sws_freeContext(swsContext);
         swsContext = nullptr;
     }
 
+    // Free packet
+    if (packet) {
+        av_packet_free(&packet);
+        packet = nullptr;
+    }
+
+    // Free frames
+    if (rgbFrame) {
+        av_frame_free(&rgbFrame);
+        rgbFrame = nullptr;
+    }
+
+    if (frame) {
+        av_frame_free(&frame);
+        frame = nullptr;
+    }
+
+    // Close codec context
     if (codecContext) {
         avcodec_free_context(&codecContext);
         codecContext = nullptr;
     }
+
+    // Close format context
+    if (formatContext) {
+        avformat_close_input(&formatContext);
+        formatContext = nullptr;
+    }
 }
 
-bool VideoDecoder::initialize() {
-    std::lock_guard<std::mutex> lock(mutex);
-
-    if (!opened || !formatContext) {
+bool VideoDecoder::readFrame() {
+    if (!isOpen()) {
         return false;
     }
 
-    // Find video stream
-    videoStreamIndex = findStream(AVMEDIA_TYPE_VIDEO);
-    if (videoStreamIndex < 0) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::STREAM_ERROR, "No video stream found in the file");
-        return false;
-    }
+    // Free previous packet
+    av_packet_unref(packet);
 
-    videoStream = formatContext->streams[videoStreamIndex];
-
-    // Find decoder for the stream
-    const AVCodec* codec = avcodec_find_decoder(videoStream->codecpar->codec_id);
-    if (!codec) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::CODEC_ERROR, "Unsupported video codec");
-        return false;
-    }
-
-    // Allocate codec context
-    codecContext = avcodec_alloc_context3(codec);
-    if (!codecContext) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to allocate video codec context");
-        return false;
-    }
-
-    // Copy codec parameters to context
-    if (avcodec_parameters_to_context(codecContext, videoStream->codecpar) < 0) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to copy video codec parameters to context");
-        return false;
-    }
-
-    // Open codec
-    if (avcodec_open2(codecContext, codec, nullptr) < 0) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to open video codec");
+    // Read next packet
+    int result = av_read_frame(formatContext, packet);
+    if (result < 0) {
         return false;
     }
 
     return true;
 }
 
-void VideoDecoder::start() {
-    std::lock_guard<std::mutex> lock(mutex);
+bool VideoDecoder::decodePacket() {
+    if (!isOpen()) {
+        return false;
+    }
 
-    if (running) {
+    // Send packet to decoder
+    int result = avcodec_send_packet(codecContext, packet);
+    if (result < 0) {
+        std::cerr << "Error sending packet to decoder: " << av_error_to_string(result) << std::endl;
+        return false;
+    }
+
+    // Receive frame from decoder
+    result = avcodec_receive_frame(codecContext, frame);
+    if (result < 0) {
+        if (result != AVERROR(EAGAIN) && result != AVERROR_EOF) {
+            std::cerr << "Error receiving frame from decoder: " << av_error_to_string(result) << std::endl;
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool VideoDecoder::convertFrame() {
+    if (!isOpen()) {
+        return false;
+    }
+
+    // Convert frame to RGB
+    int result = sws_scale(swsContext, frame->data, frame->linesize, 0, height, rgbFrame->data, rgbFrame->linesize);
+
+    if (result < 0) {
+        std::cerr << "Error converting frame: " << result << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+void VideoDecoder::updatePosition() {
+    if (!isOpen() || frame->pts == AV_NOPTS_VALUE) {
         return;
     }
 
-    running = true;
-    paused = false;
-
-    // Clear any existing frames
-    while (!frameQueue.empty()) {
-        frameQueue.pop();
-    }
-
-    // Start decoding thread
-    decodingThread = std::thread(&VideoDecoder::decodingLoop, this);
+    // Calculate current position
+    currentPosition = static_cast<double>(frame->pts) * timeBase;
 }
 
-void VideoDecoder::stop() {
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-
-        if (!running) {
-            return;
-        }
-
-        running = false;
-        paused = false;
-    }
-
-    // Notify condition variable to wake up thread
-    queueCondition.notify_all();
-
-    // Wait for thread to finish
-    if (decodingThread.joinable()) {
-        decodingThread.join();
-    }
-
-    // Clear queue
-    std::lock_guard<std::mutex> lock(queueMutex);
-    while (!frameQueue.empty()) {
-        frameQueue.pop();
-    }
-}
-
-bool VideoDecoder::getNextFrame(VideoFrame& frame) {
-    std::lock_guard<std::mutex> lock(queueMutex);
-
-    if (frameQueue.empty()) {
-        return false;
-    }
-
-    frame = frameQueue.front();
-    frameQueue.pop();
-
-    // Notify decoding thread that a frame was consumed
-    queueCondition.notify_one();
-
-    return true;
-}
-
-sf::Vector2u VideoDecoder::getSize() const {
-    if (!codecContext) {
-        return sf::Vector2u(0, 0);
-    }
-
-    return sf::Vector2u(codecContext->width, codecContext->height);
-}
-
-double VideoDecoder::getFrameRate() const {
-    if (!videoStream) {
-        return 0.0;
-    }
-
-    if (videoStream->avg_frame_rate.den == 0) {
-        return 0.0;
-    }
-
-    return static_cast<double>(videoStream->avg_frame_rate.num) / static_cast<double>(videoStream->avg_frame_rate.den);
-}
-
-bool VideoDecoder::hasMoreFrames() const {
-    return running && opened;
-}
-
-void VideoDecoder::setPaused(bool paused) {
-    this->paused = paused;
-
-    if (!paused) {
-        // Notify thread to continue if it was waiting
-        queueCondition.notify_one();
-    }
-}
-
-bool VideoDecoder::isPaused() const {
-    return paused;
-}
-
-void VideoDecoder::decodingLoop() {
-    AVPacket* packet = av_packet_alloc();
-    AVFrame* frame = av_frame_alloc();
-
-    if (!packet || !frame) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to allocate video packet or frame");
-
-        if (packet)
-            av_packet_free(&packet);
-        if (frame)
-            av_frame_free(&frame);
-
-        return;
-    }
-
-    while (running) {
-        // Check if paused
-        if (paused) {
-            std::unique_lock<std::mutex> lock(mutex);
-            queueCondition.wait(lock, [this] { return !paused || !running; });
-
-            if (!running) {
-                break;
-            }
-
-            continue;
-        }
-
-        // Check if queue is full
-        {
-            std::unique_lock<std::mutex> lock(queueMutex);
-            if (frameQueue.size() >= MAX_QUEUE_SIZE) {
-                queueCondition.wait(lock, [this] { return frameQueue.size() < MAX_QUEUE_SIZE || !running; });
-
-                if (!running) {
-                    break;
-                }
-
-                continue;
-            }
-        }
-
-        // Read packet
-        int readResult;
-        {
-            std::lock_guard<std::mutex> lock(mutex);
-
-            if (!formatContext) {
-                break;
-            }
-
-            readResult = av_read_frame(formatContext, packet);
-        }
-
-        if (readResult < 0) {
-            // End of file or error
-            if (readResult == AVERROR_EOF) {
-                // End of file, loop back to beginning
-                seek(0);
-                continue;
-            } else {
-                // Error
-                ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR,
-                                                        "Error reading video frame: " + ErrorHandler::ffmpegErrorToString(readResult));
-                break;
-            }
-        }
-
-        // Check if this packet belongs to the video stream
-        if (packet->stream_index != videoStreamIndex) {
-            av_packet_unref(packet);
-            continue;
-        }
-
-        // Send packet to decoder
-        int sendResult = avcodec_send_packet(codecContext, packet);
-        av_packet_unref(packet);
-
-        if (sendResult < 0) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR,
-                                                    "Error sending packet to video decoder: " + ErrorHandler::ffmpegErrorToString(sendResult));
-            break;
-        }
-
-        // Receive frames from decoder
-        while (running) {
-            int receiveResult = avcodec_receive_frame(codecContext, frame);
-
-            if (receiveResult == AVERROR(EAGAIN) || receiveResult == AVERROR_EOF) {
-                // Need more packets or end of stream
-                break;
-            } else if (receiveResult < 0) {
-                // Error
-                ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Error receiving frame from video decoder: " +
-                                                                                                 ErrorHandler::ffmpegErrorToString(receiveResult));
-                break;
-            }
-
-            // Convert frame to texture and add to queue
-            VideoFrame videoFrame;
-
-            // Calculate presentation timestamp in seconds
-            double pts = 0.0;
-            if (frame->pts != AV_NOPTS_VALUE) {
-                pts = frame->pts * av_q2d(videoStream->time_base);
-            }
-
-            videoFrame.pts = pts;
-
-            if (convertFrameToTexture(frame, videoFrame.texture)) {
-                std::lock_guard<std::mutex> lock(queueMutex);
-                frameQueue.push(videoFrame);
-            }
-
-            av_frame_unref(frame);
-        }
-    }
-
-    av_packet_free(&packet);
-    av_frame_free(&frame);
-}
-
-bool VideoDecoder::convertFrameToTexture(AVFrame* frame, sf::Texture& texture) {
-    // Create SwsContext if needed
-    if (!swsContext) {
-        swsContext = sws_getContext(codecContext->width, codecContext->height, codecContext->pix_fmt, codecContext->width, codecContext->height,
-                                    AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr);
-
-        if (!swsContext) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to create video scaling context");
-            return false;
-        }
-    }
-
-    // Allocate buffer for RGBA data
-    uint8_t* buffer = new uint8_t[codecContext->width * codecContext->height * 4];
-    if (!buffer) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to allocate video buffer");
-        return false;
-    }
-
-    // Set up pointers for conversion
-    uint8_t* dst_data[4] = {buffer, nullptr, nullptr, nullptr};
-    int dst_linesize[4] = {codecContext->width * 4, 0, 0, 0};
-
-    // Convert frame to RGBA
-    sws_scale(swsContext, frame->data, frame->linesize, 0, codecContext->height, dst_data, dst_linesize);
-
-    // Create SFML texture
-    if (!texture.create(codecContext->width, codecContext->height)) {
-        delete[] buffer;
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to create video texture");
-        return false;
-    }
-
-    // Update texture with pixel data
-    texture.update(buffer);
-
-    // Free buffer
-    delete[] buffer;
-
-    return true;
-}
+}  // namespace Core
+}  // namespace VideoPlayer

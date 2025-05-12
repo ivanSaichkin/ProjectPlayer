@@ -1,6 +1,8 @@
 #include "../../include/storage/ConfigManager.hpp"
-#include <fstream>
+
 #include <filesystem>
+#include <fstream>
+
 #include "../../include/core/ErrorHandler.hpp"
 
 namespace fs = std::filesystem;
@@ -51,14 +53,14 @@ bool ConfigManager::loadConfig(const std::string& filename) {
 
         std::ifstream file(path);
         if (!file.is_open()) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to open config file: " + path);
+            Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Failed to open config file: " + path);
             return false;
         }
 
         file >> config;
         return true;
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Error loading config: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Error loading config: " + std::string(e.what()));
         return false;
     }
 }
@@ -75,14 +77,15 @@ bool ConfigManager::saveConfig(const std::string& filename) {
 
         std::ofstream file(path);
         if (!file.is_open()) {
-            ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Failed to open config file for writing: " + path);
+            Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR,
+                                                          "Failed to open config file for writing: " + path);
             return false;
         }
 
-        file << config.dump(4); // Pretty print with 4-space indentation
+        file << config.dump(4);  // Pretty print with 4-space indentation
         return true;
     } catch (const std::exception& e) {
-        ErrorHandler::getInstance().handleError(MediaPlayerException::DECODER_ERROR, "Error saving config: " + std::string(e.what()));
+        Core::ErrorHandler::getInstance().handleError(Core::MediaPlayerException::DECODER_ERROR, "Error saving config: " + std::string(e.what()));
         return false;
     }
 }
@@ -95,5 +98,5 @@ std::string ConfigManager::getConfigPath() const {
     return configPath;
 }
 
-} // namespace Storage
-} // namespace VideoPlayer
+}  // namespace Storage
+}  // namespace VideoPlayer
