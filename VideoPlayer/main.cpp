@@ -5,9 +5,12 @@
 #include "/Users/andreypavlinich/a/PlayerRep/ProjectPlayer/VideoPlayer/include/ProgressBar.hpp"
 #include <SFML/Graphics.hpp>
 #include <iostream>
+#include <thread>
+#include <chrono>
 
 int main() {
   sf::Font font;
+  int secs = 0;
   if (!font.loadFromFile("/System/Library/Fonts/Supplemental/Arial.ttf")) {
     return -1;
   }
@@ -61,6 +64,7 @@ int main() {
     от положения курсора мышки (и возможность перемотки нажатием в т.ч.)
     */
 
+    //
     float progress = 0.f;
     if (progressBar.isThumbClicked(window)) {
       progressBar.setThumbColor(sf::Color(146, 208, 231)); // мб цвета в структуру/класс поместить, чтобы не путаться
@@ -71,12 +75,37 @@ int main() {
       progressBar.setThumbColor(sf::Color(26, 181, 239));
     }
 
-     if (progressBar.isTrackClicked(window)) {
+    // меняет положение ползунка
+
+
+
+
+/*
+1. менять положение ползунка
+если после нажатия прогресс
+бара лкм не была отпущена
+*/
+
+    // функция UpdateThumbFromMouse(window)
+    if (progressBar.isTrackClicked(window)) {
       sf::Vector2f mousePos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
         progressBar.updateThumbPosition(mousePos);
      }
 
+    // Функция void UpdateThumbFromProgress(window)
+
+     progressBar.UpdateThumbFromProgress(window);
+
+
+
+    //  std::cout << progressBar.getDuration();
+    // Функция ShowDuration(window)
+
+
+
+
   }
+
   // конец основного цикла
   return 0;
 }
