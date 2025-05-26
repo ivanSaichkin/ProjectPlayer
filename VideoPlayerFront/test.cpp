@@ -788,7 +788,7 @@ private:
         volumeLabel.setString("Volume");
         volumeLabel.setCharacterSize(14);
         volumeLabel.setFillColor(sf::Color::White);
-        volumeLabel.setPosition(700, 595);
+        volumeLabel.setPosition(900, 610);
         window.draw(volumeLabel);
 
         // Draw playlist items
