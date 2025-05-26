@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
+#include <sstream>
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;

@@ -18,7 +18,7 @@ namespace VideoPlayer {
 namespace Core {
 
 // Helper function to convert FFmpeg error codes to string
-std::string av_error_to_string(int errnum) {
+inline std::string av_error_to_string(int errnum) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
     av_strerror(errnum, errbuf, AV_ERROR_MAX_STRING_SIZE);
     return std::string(errbuf);

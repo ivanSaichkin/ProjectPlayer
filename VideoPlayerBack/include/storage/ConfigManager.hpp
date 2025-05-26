@@ -44,37 +44,37 @@ class ConfigManager {
 };
 
 // Template specializations for different types
-template<>
-inline std::string ConfigManager::getValue<std::string>(const std::string& key, const std::string& defaultValue) const {
+template<typename T>
+inline T ConfigManager::getValue(const std::string& key, const T& defaultValue) const {
     if (config.contains(key)) {
-        return config[key].get<std::string>();
+        return config[key].get<T>();
     }
     return defaultValue;
 }
 
-template<>
-inline int ConfigManager::getValue<int>(const std::string& key, const int& defaultValue) const {
-    if (config.contains(key)) {
-        return config[key].get<int>();
-    }
-    return defaultValue;
-}
+// template<>
+// inline int ConfigManager::getValue<int>(const std::string& key, const int& defaultValue) const {
+//     if (config.contains(key)) {
+//         return config[key].get<int>();
+//     }
+//     return defaultValue;
+// }
 
-template<>
-inline double ConfigManager::getValue<double>(const std::string& key, const double& defaultValue) const {
-    if (config.contains(key)) {
-        return config[key].get<double>();
-    }
-    return defaultValue;
-}
+// template<>
+// inline double ConfigManager::getValue<double>(const std::string& key, const double& defaultValue) const {
+//     if (config.contains(key)) {
+//         return config[key].get<double>();
+//     }
+//     return defaultValue;
+// }
 
-template<>
-inline bool ConfigManager::getValue<bool>(const std::string& key, const bool& defaultValue) const {
-    if (config.contains(key)) {
-        return config[key].get<bool>();
-    }
-    return defaultValue;
-}
+// template<>
+// inline bool ConfigManager::getValue<bool>(const std::string& key, const bool& defaultValue) const {
+//     if (config.contains(key)) {
+//         return config[key].get<bool>();
+//     }
+//     return defaultValue;
+// }
 
 // General implementation for setValue
 template<typename T>

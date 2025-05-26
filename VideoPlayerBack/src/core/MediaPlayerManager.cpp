@@ -31,6 +31,29 @@ MediaPlayerManager::~MediaPlayerManager() {
     shutdown();
 }
 
+void MediaPlayerManager::loadSettings() {
+    auto& config = Storage::ConfigManager::getInstance();
+
+    // Load volume
+    float volume = config.getValue<float>("volume", 1.0f);
+    mediaPlayer->setVolume(volume);
+
+    // Load autoplay setting
+    autoplay = config.getValue<bool>("autoplay", true);
+
+    // Load remember position setting
+    rememberPosition = config.getValue<bool>("rememberPosition", true);
+
+    // Load fullscreen setting
+    fullscreen = config.getValue<bool>("fullscreen", false);
+
+    // Load repeat mode
+    repeatMode = config.getValue<int>("repeatMode", 0);
+
+    // Load shuffle mode
+    shuffleMode = config.getValue<bool>("shuffleMode", false);
+}
+
 bool MediaPlayerManager::initialize() {
     try {
         // Load settings
@@ -558,29 +581,6 @@ void MediaPlayerManager::onError(const MediaPlayerException& error) {
     if (userErrorCallback) {
         userErrorCallback(error);
     }
-}
-
-void MediaPlayerManager::loadSettings() {
-    auto& config = Storage::ConfigManager::getInstance();
-
-    // Load volume
-    float volume = config.getValue<float>("volume", 1.0f);
-    mediaPlayer->setVolume(volume);
-
-    // Load autoplay setting
-    autoplay = config.getValue<bool>("autoplay", true);
-
-    // Load remember position setting
-    rememberPosition = config.getValue<bool>("rememberPosition", true);
-
-    // Load fullscreen setting
-    fullscreen = config.getValue<bool>("fullscreen", false);
-
-    // Load repeat mode
-    repeatMode = config.getValue<int>("repeatMode", 0);
-
-    // Load shuffle mode
-    shuffleMode = config.getValue<bool>("shuffleMode", false);
 }
 
 void MediaPlayerManager::saveSettings() {
