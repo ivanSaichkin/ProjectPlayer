@@ -93,7 +93,7 @@ void MediaPlayer::play() {
         // Resume from pause
         paused = false;
 
-        // Resume audio
+        // Resume audixo
         sound.play();
 
         // Call pause callback

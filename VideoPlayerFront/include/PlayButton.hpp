@@ -11,8 +11,13 @@
 class PlayButton : public Button {
 public:
     PlayButton(const sf::Vector2f& position, const sf::Vector2f& size);
-    void onClick() const; // Переопределяем метод для специфичного поведения
+    bool onClick(sf::RenderWindow& window); // Переопределяем метод для специфичного поведения
     void animate(sf::RenderWindow& window);
+
+    void getIsClicked();
+    void setIsClicked(bool isClicked);
+private:
+    bool isClicked;
 };
 
 #endif // PLAYBUTTON_HPP

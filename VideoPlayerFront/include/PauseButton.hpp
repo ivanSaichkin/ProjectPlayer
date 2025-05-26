@@ -11,8 +11,13 @@
 class PauseButton : public Button {
     public:
         PauseButton(const sf::Vector2f& position, const sf::Vector2f& size);
-        void onClick() const;
+        bool onClick(sf::RenderWindow& window);
         void animate(sf::RenderWindow& window);
+
+        bool getIsClicked();
+        void setIsClicked(bool isClicked);
+    private:
+        bool isClicked;
 
 };
 

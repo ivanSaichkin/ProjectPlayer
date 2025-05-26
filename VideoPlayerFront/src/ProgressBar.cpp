@@ -193,7 +193,7 @@ void ProgressBar::UpdateThumbFromProgress(const sf::RenderWindow& window) {
     sf::FloatRect progressBarSize = track.getLocalBounds();
     float progressBarWidth = progressBarSize.width;
 
-    int durationFull = 10000; //длительность видео
+    double durationFull = 10000; //длительность видео
 
     float elementaryProgress = progressBarWidth / 100;
 
@@ -201,7 +201,7 @@ void ProgressBar::UpdateThumbFromProgress(const sf::RenderWindow& window) {
 
     ProgressBar::updateThumbPosition({(progressBarWidth * duration / durationFull) + track.getPosition().x, 100}); // ВАЖНЫЙ РАСЧЕТ ПОЛОЖЕНИЯ ПОЛЗУНКА ЧЕРЕЗ ВРЕМЯ
 
-    duration += 10;
+    duration += 10; // duration все время обновляется из бэка
     }
 
     else {

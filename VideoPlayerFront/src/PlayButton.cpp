@@ -3,12 +3,27 @@
 
 PlayButton::PlayButton(const sf::Vector2f& position, const sf::Vector2f& size)
     : Button("/Users/andreypavlinich/playButton.png", position, size) {
-    // Дополнительная инициализация, если необходимо
 }
 
-void PlayButton::onClick() const {
-    std::cout << "Кнопка плей нажата!" << std::endl;
-    // Здесь можно добавить логику для кнопки Play
+bool PlayButton::onClick(sf::RenderWindow& window) {
+    if (this->isMouseOver(window) && sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+        isClicked = true;
+
+        VideoPlayer::Core::MediaPlayer::play();
+        return true;
+    }
+    else {
+        isClicked = false;
+        return false;
+    }
+}
+
+void PlayButton::setIsClicked(bool isClicked) {
+    this->isClicked = isClicked;
+}
+
+bool PlayButton::getIsClicked() {
+    return isClicked;
 }
 
 void PlayButton::animate(sf::RenderWindow& window) {

@@ -3,12 +3,27 @@
 
 PauseButton::PauseButton(const sf::Vector2f& position, const sf::Vector2f& size)
     : Button("/Users/andreypavlinich/pauseButton.png", position, size) {
-    // Дополнительная инициализация, если необходимо
 }
 
-void PauseButton::onClick() const {
-    std::cout << "Кнопка паузы нажата!" << std::endl;
-    // Здесь можно добавить логику для кнопки Pause
+bool PauseButton::onClick(sf::RenderWindow& window) { // проверка ЛКМ
+    if (this->isMouseOver(window) && sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+        isClicked = true;
+
+        VideoPlayer::Core::MediaPlayer::pause();
+        return true;
+    }
+    else {
+        isClicked = false;
+        return false;
+    }
+}
+
+void PauseButton::setIsClicked(bool isClicked) {
+    this->isClicked = isClicked;
+}
+
+bool PauseButton::getIsClicked() {
+    return isClicked;
 }
 
 void PauseButton::animate(sf::RenderWindow& window){

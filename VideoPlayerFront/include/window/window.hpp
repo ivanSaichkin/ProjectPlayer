@@ -21,7 +21,7 @@ namespace Window {
 
 namespace ButtonWindow {
     // sf::RenderWindow createWindow(int sizeX, int sizeY);
-    void startWindowCycle(PlayButton& playButton, PauseButton& pauseButton, ProgressBar& progressBar);
+    void openButtonWindow(PlayButton& playButton, PauseButton& pauseButton, ProgressBar& progressBar);
 
     void drawButtons(sf::RenderWindow& window, PlayButton& playButton, PauseButton& PauseButton, ProgressBar& progressBar);
 

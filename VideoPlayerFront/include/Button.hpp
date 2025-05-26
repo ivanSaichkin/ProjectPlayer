@@ -4,6 +4,7 @@
 #include <SFML/Graphics.hpp>
 #include <functional>
 #include <string>
+#include "/Users/andreypavlinich/ProjectPlayer-1/VideoPlayerBack/include/core/MediaPlayerManager.hpp"
 
 class Button {
 public:
