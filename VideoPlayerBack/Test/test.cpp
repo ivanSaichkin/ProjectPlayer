@@ -1,10 +1,11 @@
-
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 #include <iostream>
 #include <string>
 #include <cmath>
 #include <filesystem>
+#include <vector>
+#include <algorithm>
 
 #include "../API/MediaPlayer.hpp"
 
@@ -15,7 +16,10 @@ const sf::Color BUTTON_HOVER_COLOR(80, 80, 80);
 const sf::Color BUTTON_ACTIVE_COLOR(100, 100, 100);
 const sf::Color PROGRESS_BAR_BG_COLOR(40, 40, 40);
 const sf::Color PROGRESS_BAR_FILL_COLOR(0, 120, 215);
+const sf::Color VOLUME_BAR_BG_COLOR(50, 50, 50);
+const sf::Color VOLUME_BAR_FILL_COLOR(0, 150, 136);
 const sf::Color TEXT_COLOR(220, 220, 220);
+const sf::Color SELECTED_FILE_COLOR(70, 120, 200);
 
 // UI Components
 class Button {
@@ -28,14 +32,20 @@ public:
         text.setString(label);
         text.setCharacterSize(14);
         text.setFillColor(TEXT_COLOR);
+
+        isPressed = false;
+        animationClock.restart();
+        animationDuration = 0.15f; // 150ms animation
     }
 
     void setPosition(float x, float y) {
+        originalPosition = sf::Vector2f(x, y);
         shape.setPosition(x, y);
         centerText();
     }
 
     void draw(sf::RenderWindow& window) {
+        updateAnimation();
         window.draw(shape);
         window.draw(text);
     }
@@ -45,11 +55,19 @@ public:
     }
 
     void setHoverState(bool isHovering) {
-        shape.setFillColor(isHovering ? BUTTON_HOVER_COLOR : BUTTON_COLOR);
+        if (!isPressed) {
+            shape.setFillColor(isHovering ? BUTTON_HOVER_COLOR : BUTTON_COLOR);
+        }
     }
 
     void setActiveState(bool isActive) {
-        shape.setFillColor(isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR);
+        isPressed = isActive;
+        if (isActive) {
+            animationClock.restart();
+            shape.setFillColor(BUTTON_ACTIVE_COLOR);
+        } else {
+            shape.setFillColor(BUTTON_COLOR);
+        }
     }
 
 private:
@@ -61,8 +79,32 @@ private:
         );
     }
 
+    void updateAnimation() {
+        if (isPressed && animationClock.getElapsedTime().asSeconds() < animationDuration) {
+            float progress = animationClock.getElapsedTime().asSeconds() / animationDuration;
+            float scale = 1.0f - 0.05f * sin(progress * 3.14159f); // Scale down and back up
+
+            sf::Vector2f size = sf::Vector2f(80 * scale, 30 * scale);
+            shape.setSize(size);
+
+            // Center the scaled button
+            sf::Vector2f offset = sf::Vector2f((80 - size.x) / 2, (30 - size.y) / 2);
+            shape.setPosition(originalPosition + offset);
+
+            centerText();
+        } else if (!isPressed) {
+            shape.setSize(sf::Vector2f(80, 30));
+            shape.setPosition(originalPosition);
+            centerText();
+        }
+    }
+
     sf::RectangleShape shape;
     sf::Text text;
+    sf::Vector2f originalPosition;
+    bool isPressed;
+    sf::Clock animationClock;
+    float animationDuration;
 };
 
 class ProgressBar {
@@ -87,7 +129,7 @@ public:
         timeText.setPosition(x, y + background.getSize().y + 5.0f);
     }
 
-    void update(double currentTime, double duration) {
+    void update(double currentTime, double duration, bool isPlaying) {
         this->currentTime = currentTime;
         this->duration = duration;
 
@@ -97,6 +139,10 @@ public:
 
         // Update time text
         timeText.setString(formatTime(currentTime) + " / " + formatTime(duration));
+    }
+
+    bool isVideoEnded() const {
+        return duration > 0 && currentTime >= duration;
     }
 
     void draw(sf::RenderWindow& window) {
@@ -110,7 +156,7 @@ public:
     }
 
     double getPositionFromClick(float x) const {
-        float relativeX = x - background.getPosition().x;
+        float relativeX = std::max(0.0f, std::min(x - background.getPosition().x, background.getSize().x));
         float ratio = relativeX / background.getSize().x;
         return ratio * duration;
     }
@@ -129,56 +175,134 @@ private:
     double duration = 0.0;
 };
 
-class FileDialog {
+class VolumeBar {
 public:
-    FileDialog(const sf::Font& font) {
-        background.setFillColor(sf::Color(20, 20, 20, 230));
+    VolumeBar(const sf::Font& font) {
+        background.setFillColor(VOLUME_BAR_BG_COLOR);
+        fill.setFillColor(VOLUME_BAR_FILL_COLOR);
+        handle.setFillColor(sf::Color::White);
 
-        title.setFont(font);
-        title.setString("Open Media File");
-        title.setCharacterSize(18);
-        title.setFillColor(TEXT_COLOR);
+        volumeText.setFont(font);
+        volumeText.setCharacterSize(12);
+        volumeText.setFillColor(TEXT_COLOR);
 
-        closeButton = std::make_unique<Button>("X", font);
-        okButton = std::make_unique<Button>("Open", font);
-        cancelButton = std::make_unique<Button>("Cancel", font);
-
-        inputBox.setFillColor(sf::Color(50, 50, 50));
-        inputBox.setOutlineColor(sf::Color(100, 100, 100));
-        inputBox.setOutlineThickness(1);
-
-        inputText.setFont(font);
-        inputText.setCharacterSize(14);
-        inputText.setFillColor(TEXT_COLOR);
-        inputText.setString("");
-
-        cursorShape.setFillColor(TEXT_COLOR);
-
-        isActive = false;
-        cursorVisible = true;
-        cursorClock.restart();
+        volume = 100.0f; // Default volume 100%
+        updateDisplay();
     }
 
     void setSize(float width, float height) {
         background.setSize(sf::Vector2f(width, height));
-        inputBox.setSize(sf::Vector2f(width - 40, 30));
-
-        closeButton->setPosition(width - 40, 20);
-        okButton->setPosition(width - 180, height - 50);
-        cancelButton->setPosition(width - 90, height - 50);
+        handle.setSize(sf::Vector2f(8, height + 4));
     }
 
     void setPosition(float x, float y) {
+        this->x = x;
+        this->y = y;
+        background.setPosition(x, y);
+        fill.setPosition(x, y);
+        volumeText.setPosition(x, y - 20);
+        updateHandlePosition();
+    }
+
+    void update(float newVolume) {
+        volume = std::max(0.0f, std::min(100.0f, newVolume));
+        updateDisplay();
+    }
+
+    void draw(sf::RenderWindow& window) {
+        window.draw(background);
+        window.draw(fill);
+        window.draw(handle);
+        window.draw(volumeText);
+    }
+
+    bool contains(const sf::Vector2f& point) const {
+        sf::FloatRect bounds = background.getGlobalBounds();
+        bounds.height += 8; // Увеличить область для удобства
+        bounds.top -= 4;
+        return bounds.contains(point);
+    }
+
+    float getVolumeFromClick(float mouseX) const {
+        float relativeX = mouseX - x;
+        float ratio = relativeX / background.getSize().x;
+        return std::max(0.0f, std::min(1.0f, ratio)) * 100.0f;
+    }
+
+    float getVolume() const { return volume; }
+
+private:
+    void updateDisplay() {
+        float fillWidth = (volume / 100.0f) * background.getSize().x;
+        fill.setSize(sf::Vector2f(fillWidth, background.getSize().y));
+
+        volumeText.setString("Volume: " + std::to_string(static_cast<int>(volume)) + "%");
+        updateHandlePosition();
+    }
+
+    void updateHandlePosition() {
+        float handleX = x + (volume / 100.0f) * background.getSize().x - 4;
+        handle.setPosition(handleX, y - 2);
+    }
+
+    sf::RectangleShape background;
+    sf::RectangleShape fill;
+    sf::RectangleShape handle;
+    sf::Text volumeText;
+    float volume;
+    float x, y;
+};
+
+class FileBrowser {
+public:
+    FileBrowser(const sf::Font& font) : font(font) {
+        background.setFillColor(sf::Color(20, 20, 20, 240));
+
+        title.setFont(font);
+        title.setString("Select File from Test Directory");
+        title.setCharacterSize(18);
+        title.setFillColor(TEXT_COLOR);
+
+        closeButton = std::make_unique<Button>("X", font);
+        openButton = std::make_unique<Button>("Open", font);
+        cancelButton = std::make_unique<Button>("Cancel", font);
+
+        // Поддерживаемые форматы
+        supportedExtensions = {".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm", ".mp3", ".wav", ".ogg", ".m4a"};
+
+        isActive = false;
+        selectedIndex = -1;
+        scrollOffset = 0;
+    }
+
+    void setSize(float width, float height) {
+        this->width = width;
+        this->height = height;
+        background.setSize(sf::Vector2f(width, height));
+
+        closeButton->setPosition(width - 40, 20);
+        openButton->setPosition(width - 180, height - 50);
+        cancelButton->setPosition(width - 90, height - 50);
+
+        fileListHeight = height - 120; // Высота области списка файлов
+    }
+
+    void setPosition(float x, float y) {
+        this->x = x;
+        this->y = y;
         background.setPosition(x, y);
         title.setPosition(x + 20, y + 20);
-        inputBox.setPosition(x + 20, y + 60);
-        inputText.setPosition(x + 25, y + 65);
-        cursorShape.setPosition(inputText.getPosition().x + inputText.getLocalBounds().width + 2, y + 65);
-        cursorShape.setSize(sf::Vector2f(1, 20));
 
-        closeButton->setPosition(x + background.getSize().x - 40, y + 20);
-        okButton->setPosition(x + background.getSize().x - 180, y + background.getSize().y - 50);
-        cancelButton->setPosition(x + background.getSize().x - 90, y + background.getSize().y - 50);
+        closeButton->setPosition(x + width - 40, y + 20);
+        openButton->setPosition(x + width - 180, y + height - 50);
+        cancelButton->setPosition(x + width - 90, y + height - 50);
+    }
+
+    void show() {
+        isActive = true;
+        selectedIndex = -1;
+        scrollOffset = 0;
+        loadCurrentDirectory();
     }
 
     void draw(sf::RenderWindow& window) {
@@ -186,21 +310,12 @@ public:
 
         window.draw(background);
         window.draw(title);
-        window.draw(inputBox);
-        window.draw(inputText);
 
-        // Blink cursor
-        if (cursorClock.getElapsedTime().asSeconds() > 0.5f) {
-            cursorVisible = !cursorVisible;
-            cursorClock.restart();
-        }
-
-        if (cursorVisible) {
-            window.draw(cursorShape);
-        }
+        // Рисуем список файлов
+        drawFileList(window);
 
         closeButton->draw(window);
-        okButton->draw(window);
+        openButton->draw(window);
         cancelButton->draw(window);
     }
 
@@ -210,7 +325,7 @@ public:
         if (event.type == sf::Event::MouseMoved) {
             sf::Vector2f mousePos(event.mouseMove.x, event.mouseMove.y);
             closeButton->setHoverState(closeButton->contains(mousePos));
-            okButton->setHoverState(okButton->contains(mousePos));
+            openButton->setHoverState(openButton->contains(mousePos));
             cancelButton->setHoverState(cancelButton->contains(mousePos));
         }
 
@@ -222,67 +337,135 @@ public:
                 return;
             }
 
-            if (okButton->contains(mousePos)) {
+            if (openButton->contains(mousePos) && selectedIndex >= 0) {
                 isActive = false;
-                if (onFileSelected && !filePath.empty()) {
-                    onFileSelected(filePath);
+                if (onFileSelected) {
+                    onFileSelected(currentFiles[selectedIndex]);
                 }
                 return;
             }
+
+            // Проверяем клик по списку файлов
+            handleFileListClick(mousePos);
         }
 
-        if (event.type == sf::Event::TextEntered) {
-            if (event.text.unicode == 8) { // Backspace
-                if (!filePath.empty()) {
-                    filePath.pop_back();
-                }
-            } else if (event.text.unicode >= 32) { // Printable characters
-                filePath += static_cast<char>(event.text.unicode);
+        // Обработка прокрутки
+        if (event.type == sf::Event::MouseWheelScrolled) {
+            if (event.mouseWheelScroll.x >= x && event.mouseWheelScroll.x <= x + width &&
+                event.mouseWheelScroll.y >= y + 60 && event.mouseWheelScroll.y <= y + 60 + fileListHeight) {
+                scrollOffset -= event.mouseWheelScroll.delta * 3;
+                scrollOffset = std::max(0, std::min(scrollOffset, static_cast<int>(currentFiles.size()) - getVisibleFileCount()));
             }
-
-            inputText.setString(filePath);
-            cursorShape.setPosition(inputText.getPosition().x + inputText.getLocalBounds().width + 2,
-                                   cursorShape.getPosition().y);
         }
     }
 
-    void show() {
-        isActive = true;
-        filePath = "";
-        inputText.setString(filePath);
-        cursorVisible = true;
-        cursorClock.restart();
-    }
-
-    bool isVisible() const {
-        return isActive;
-    }
+    bool isVisible() const { return isActive; }
 
     void setFileSelectedCallback(std::function<void(const std::string&)> callback) {
         onFileSelected = callback;
     }
 
 private:
+    void loadCurrentDirectory() {
+        currentFiles.clear();
+        try {
+            // Загружаем файлы из указанной директории
+            std::string targetPath = "/Users/andreypavlinich/ProjectPlayer-1/VideoPlayerBack/Test";
+
+            if (!std::filesystem::exists(targetPath)) {
+                std::cerr << "Directory does not exist: " << targetPath << std::endl;
+                return;
+            }
+
+            for (const auto& entry : std::filesystem::directory_iterator(targetPath)) {
+                if (entry.is_regular_file()) {
+                    std::string filename = entry.path().filename().string();
+                    // Показываем все файлы, не только медиа
+                    currentFiles.push_back(entry.path().string());
+                }
+            }
+
+            std::sort(currentFiles.begin(), currentFiles.end());
+        } catch (const std::exception& e) {
+            std::cerr << "Error loading directory: " << e.what() << std::endl;
+        }
+    }
+
+    void drawFileList(sf::RenderWindow& window) {
+        const float itemHeight = 25.0f;
+        const float listY = y + 60;
+        int visibleCount = getVisibleFileCount();
+
+        for (int i = 0; i < visibleCount && (i + scrollOffset) < currentFiles.size(); ++i) {
+            int fileIndex = i + scrollOffset;
+            float itemY = listY + i * itemHeight;
+
+            // Создаем фон для элемента
+            sf::RectangleShape itemBg;
+            itemBg.setSize(sf::Vector2f(width - 40, itemHeight));
+            itemBg.setPosition(x + 20, itemY);
+
+            if (fileIndex == selectedIndex) {
+                itemBg.setFillColor(SELECTED_FILE_COLOR);
+            } else {
+                itemBg.setFillColor(sf::Color(40, 40, 40));
+            }
+
+            window.draw(itemBg);
+
+            // Создаем текст файла
+            sf::Text fileText;
+            fileText.setFont(font);
+            fileText.setCharacterSize(12);
+            fileText.setFillColor(TEXT_COLOR);
+
+            std::string filename = std::filesystem::path(currentFiles[fileIndex]).filename().string();
+            fileText.setString(filename);
+            fileText.setPosition(x + 25, itemY + 5);
+
+            window.draw(fileText);
+        }
+    }
+
+    void handleFileListClick(const sf::Vector2f& mousePos) {
+        const float itemHeight = 25.0f;
+        const float listY = y + 60;
+
+        if (mousePos.x >= x + 20 && mousePos.x <= x + width - 20 &&
+            mousePos.y >= listY && mousePos.y <= listY + fileListHeight) {
+
+            int clickedIndex = static_cast<int>((mousePos.y - listY) / itemHeight) + scrollOffset;
+            if (clickedIndex >= 0 && clickedIndex < currentFiles.size()) {
+                selectedIndex = clickedIndex;
+            }
+        }
+    }
+
+    int getVisibleFileCount() const {
+        return static_cast<int>(fileListHeight / 25.0f);
+    }
+
     sf::RectangleShape background;
     sf::Text title;
     std::unique_ptr<Button> closeButton;
-    std::unique_ptr<Button> okButton;
+    std::unique_ptr<Button> openButton;
     std::unique_ptr<Button> cancelButton;
-    sf::RectangleShape inputBox;
-    sf::Text inputText;
-    sf::RectangleShape cursorShape;
-    sf::Clock cursorClock;
 
-    std::string filePath;
+    const sf::Font& font;
+    std::vector<std::string> currentFiles;
+    std::vector<std::string> supportedExtensions;
+
+    float x, y, width, height, fileListHeight;
     bool isActive;
-    bool cursorVisible;
+    int selectedIndex;
+    int scrollOffset;
 
     std::function<void(const std::string&)> onFileSelected;
 };
 
 int main(int argc, char* argv[]) {
     // Create window
-    sf::RenderWindow window(sf::VideoMode(800, 600), "Media Player");
+    sf::RenderWindow window(sf::VideoMode(900, 700), "Advanced Media Player");
     window.setFramerateLimit(60);
 
     // Load font
@@ -303,7 +486,8 @@ int main(int argc, char* argv[]) {
     Button openButton("Open", font);
 
     ProgressBar progressBar(font);
-    FileDialog fileDialog(font);
+    VolumeBar volumeBar(font);
+    FileBrowser fileBrowser(font);
 
     // Set up UI layout
     const float buttonY = 10;
@@ -325,15 +509,19 @@ int main(int argc, char* argv[]) {
     openButton.setPosition(currentX, buttonY);
 
     progressBar.setSize(window.getSize().x - 20, 10);
-    progressBar.setPosition(10, window.getSize().y - 40);
+    progressBar.setPosition(10, window.getSize().y - 60);
 
-    fileDialog.setSize(400, 200);
-    fileDialog.setPosition((window.getSize().x - 400) / 2, (window.getSize().y - 200) / 2);
+    // Настройка ползунка громкости
+    volumeBar.setSize(150, 8);
+    volumeBar.setPosition(window.getSize().x - 170, window.getSize().y - 100);
+
+    fileBrowser.setSize(500, 400);
+    fileBrowser.setPosition((window.getSize().x - 500) / 2, (window.getSize().y - 400) / 2);
 
     // Video display area
     sf::RectangleShape videoBackground;
     videoBackground.setFillColor(sf::Color::Black);
-    videoBackground.setSize(sf::Vector2f(window.getSize().x - 20, window.getSize().y - 100));
+    videoBackground.setSize(sf::Vector2f(window.getSize().x - 20, window.getSize().y - 140));
     videoBackground.setPosition(10, 50);
 
     sf::Texture videoTexture;
@@ -341,7 +529,7 @@ int main(int argc, char* argv[]) {
     videoSprite.setPosition(10, 50);
 
     // Set up callbacks
-    fileDialog.setFileSelectedCallback([&](const std::string& filename) {
+    fileBrowser.setFileSelectedCallback([&](const std::string& filename) {
         if (player.open(filename)) {
             std::cout << "Opened: " << filename << std::endl;
             player.play();
@@ -364,6 +552,8 @@ int main(int argc, char* argv[]) {
     // Main loop
     sf::Clock clock;
     bool isDraggingProgressBar = false;
+    bool isDraggingVolumeBar = false;
+    bool wasVideoEnded = false;
 
     while (window.isOpen()) {
         sf::Event event;
@@ -372,9 +562,9 @@ int main(int argc, char* argv[]) {
                 window.close();
             }
 
-            // Handle file dialog events
-            if (fileDialog.isVisible()) {
-                fileDialog.handleEvent(event, window);
+            // Handle file browser events
+            if (fileBrowser.isVisible()) {
+                fileBrowser.handleEvent(event, window);
                 continue;
             }
 
@@ -391,8 +581,29 @@ int main(int argc, char* argv[]) {
                 // Update progress bar if dragging
                 if (isDraggingProgressBar) {
                     double seekPos = progressBar.getPositionFromClick(mousePos.x);
-                    seekPos = std::max(0.0, std::min(seekPos, player.getDuration()));
-                    player.seek(seekPos);
+                    if (seekPos >= 0 && seekPos <= player.getDuration()) {
+                        // Важно: делаем принудительный flush аудио при перемотке
+                        bool wasPlaying = player.isPlaying();
+                        player.pause(); // Временно останавливаем
+                        player.seek(seekPos);
+
+                        // Даем небольшую задержку для синхронизации
+                        sf::sleep(sf::milliseconds(10));
+
+                        // Восстанавливаем состояние воспроизведения
+                        if (wasPlaying) {
+                            player.play();
+                        }
+
+                        std::cout << "Dragging to: " << seekPos << " seconds" << std::endl;
+                    }
+                }
+
+                // Update volume bar if dragging
+                if (isDraggingVolumeBar) {
+                    float newVolume = volumeBar.getVolumeFromClick(mousePos.x);
+                    volumeBar.update(newVolume);
+                    player.setVolume(newVolume / 100.0f);
                 }
             }
 
@@ -405,110 +616,209 @@ int main(int argc, char* argv[]) {
                 } else if (pauseButton.contains(mousePos)) {
                     player.pause();
                     pauseButton.setActiveState(true);
-            } else if (prevButton.contains(mousePos)) {
-                player.seek(std::max(0.0, player.getCurrentPosition() - 10.0));
-                prevButton.setActiveState(true);
-            } else if (nextButton.contains(mousePos)) {
-                player.seek(std::min(player.getDuration(), player.getCurrentPosition() + 10.0));
-                nextButton.setActiveState(true);
-            } else if (openButton.contains(mousePos)) {
-                fileDialog.show();
-                openButton.setActiveState(true);
-            } else if (progressBar.contains(mousePos)) {
-                isDraggingProgressBar = true;
-                double seekPos = progressBar.getPositionFromClick(mousePos.x);
-                seekPos = std::max(0.0, std::min(seekPos, player.getDuration()));
-                player.seek(seekPos);
-            }
-        }
+                } else if (prevButton.contains(mousePos)) {
+                    double newPos = std::max(0.0, player.getCurrentPosition() - 10.0);
 
-        if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left) {
-            // Reset button active states
-            playButton.setActiveState(false);
-            pauseButton.setActiveState(false);
-            prevButton.setActiveState(false);
-            nextButton.setActiveState(false);
-            openButton.setActiveState(false);
-            isDraggingProgressBar = false;
-        }
-
-        // Keyboard shortcuts
-        if (event.type == sf::Event::KeyPressed) {
-            switch (event.key.code) {
-                case sf::Keyboard::Space:
-                    player.togglePlayPause();
-                    break;
-                case sf::Keyboard::Left:
-                    player.seek(std::max(0.0, player.getCurrentPosition() - 5.0));
-                    break;
-                case sf::Keyboard::Right:
-                    player.seek(std::min(player.getDuration(), player.getCurrentPosition() + 5.0));
-                    break;
-                case sf::Keyboard::O:
-                    if (event.key.control) {
-                        fileDialog.show();
+                    // Улучшенная синхронизация для кнопки "назад"
+                    bool wasPlaying = player.isPlaying();
+                    player.pause();
+                    player.seek(newPos);
+                    sf::sleep(sf::milliseconds(50)); // Даем время на синхронизацию
+                    if (wasPlaying) {
+                        player.play();
                     }
-                    break;
-                default:
-                    break;
+
+                    prevButton.setActiveState(true);
+                    std::cout << "Seeking backward to: " << newPos << " seconds" << std::endl;
+                } else if (nextButton.contains(mousePos)) {
+                    double newPos = std::min(player.getDuration(), player.getCurrentPosition() + 10.0);
+
+                    // Улучшенная синхронизация для кнопки "вперед"
+                    bool wasPlaying = player.isPlaying();
+                    player.pause();
+                    player.seek(newPos);
+                    sf::sleep(sf::milliseconds(50)); // Даем время на синхронизацию
+                    if (wasPlaying) {
+                        player.play();
+                    }
+
+                    nextButton.setActiveState(true);
+                    std::cout << "Seeking forward to: " << newPos << " seconds" << std::endl;
+                } else if (openButton.contains(mousePos)) {
+                    fileBrowser.show();
+                    openButton.setActiveState(true);
+                } else if (progressBar.contains(mousePos)) {
+                    isDraggingProgressBar = true;
+                    double seekPos = progressBar.getPositionFromClick(mousePos.x);
+                    if (seekPos >= 0 && seekPos <= player.getDuration()) {
+                        // Улучшенная синхронизация при клике на прогресс-бар
+                        bool wasPlaying = player.isPlaying();
+                        player.pause();
+                        player.seek(seekPos);
+                        sf::sleep(sf::milliseconds(30)); // Задержка для синхронизации
+
+                        if (wasPlaying) {
+                            player.play();
+                        }
+
+                        std::cout << "Seeking to: " << seekPos << " seconds" << std::endl;
+                    }
+                } else if (volumeBar.contains(mousePos)) {
+                    isDraggingVolumeBar = true;
+                    float newVolume = volumeBar.getVolumeFromClick(mousePos.x);
+                    volumeBar.update(newVolume);
+                    player.setVolume(newVolume / 100.0f);
+                }
+            }
+
+            if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left) {
+                // Reset button active states
+                playButton.setActiveState(false);
+                pauseButton.setActiveState(false);
+                prevButton.setActiveState(false);
+                nextButton.setActiveState(false);
+                openButton.setActiveState(false);
+
+                // При отпускании мыши с прогресс-бара делаем финальную синхронизацию
+                if (isDraggingProgressBar) {
+                    // Финальная синхронизация при завершении перетаскивания
+                    player.update(); // Принудительное обновление
+                    sf::sleep(sf::milliseconds(20));
+                }
+
+                isDraggingProgressBar = false;
+                isDraggingVolumeBar = false;
+            }
+
+            // Keyboard shortcuts
+            if (event.type == sf::Event::KeyPressed) {
+                switch (event.key.code) {
+                    case sf::Keyboard::Space:
+                        player.togglePlayPause();
+                        break;
+                    case sf::Keyboard::Left:
+                        {
+                            double newPos = std::max(0.0, player.getCurrentPosition() - 5.0);
+
+                            // Улучшенная синхронизация для клавиш
+                            bool wasPlaying = player.isPlaying();
+                            player.pause();
+                            player.seek(newPos);
+                            sf::sleep(sf::milliseconds(50));
+                            if (wasPlaying) {
+                                player.play();
+                            }
+
+                            std::cout << "Seeking backward (keyboard) to: " << newPos << " seconds" << std::endl;
+                        }
+                        break;
+                    case sf::Keyboard::Right:
+                        {
+                            double newPos = std::min(player.getDuration(), player.getCurrentPosition() + 5.0);
+
+                            // Улучшенная синхронизация для клавиш
+                            bool wasPlaying = player.isPlaying();
+                            player.pause();
+                            player.seek(newPos);
+                            sf::sleep(sf::milliseconds(50));
+                            if (wasPlaying) {
+                                player.play();
+                            }
+
+                            std::cout << "Seeking forward (keyboard) to: " << newPos << " seconds" << std::endl;
+                        }
+                        break;
+                    case sf::Keyboard::O:
+                        if (event.key.control) {
+                            fileBrowser.show();
+                        }
+                        break;
+                    case sf::Keyboard::Up:
+                        {
+                            float newVolume = std::min(100.0f, volumeBar.getVolume() + 5.0f);
+                            volumeBar.update(newVolume);
+                            player.setVolume(newVolume / 100.0f);
+                        }
+                        break;
+                    case sf::Keyboard::Down:
+                        {
+                            float newVolume = std::max(0.0f, volumeBar.getVolume() - 5.0f);
+                            volumeBar.update(newVolume);
+                            player.setVolume(newVolume / 100.0f);
+                        }
+                        break;
+                    default:
+                        break;
+                }
             }
         }
+
+        // Update player - важно делать это регулярно для поддержания синхронизации
+        player.update();
+
+        // Check if video ended and restart if needed
+        bool isVideoEnded = progressBar.isVideoEnded();
+        if (isVideoEnded && !wasVideoEnded && player.getDuration() > 0) {
+            // Video just ended, restart from beginning
+            player.seek(0.0);
+            sf::sleep(sf::milliseconds(100)); // Даем время на синхронизацию
+            player.play();
+            std::cout << "Video ended, restarting from beginning" << std::endl;
+        }
+        wasVideoEnded = isVideoEnded;
+
+        // Get current video frame
+        if (player.getCurrentFrame(videoTexture)) {
+            videoSprite.setTexture(videoTexture, true);
+
+            // Center video in the video area
+            sf::Vector2u textureSize = videoTexture.getSize();
+            sf::Vector2f videoAreaSize = videoBackground.getSize();
+
+            float scaleX = videoAreaSize.x / textureSize.x;
+            float scaleY = videoAreaSize.y / textureSize.y;
+            float scale = std::min(scaleX, scaleY);
+
+            videoSprite.setScale(scale, scale);
+
+            float videoWidth = textureSize.x * scale;
+            float videoHeight = textureSize.y * scale;
+            float videoX = videoBackground.getPosition().x + (videoAreaSize.x - videoWidth) / 2;
+            float videoY = videoBackground.getPosition().y + (videoAreaSize.y - videoHeight) / 2;
+
+            videoSprite.setPosition(videoX, videoY);
+        }
+
+        // Update progress bar with playing state
+        progressBar.update(player.getCurrentPosition(), player.getDuration(), player.isPlaying());
+
+        // Clear window
+        window.clear(BACKGROUND_COLOR);
+
+        // Draw video background and video
+        window.draw(videoBackground);
+        if (videoTexture.getSize().x > 0 && videoTexture.getSize().y > 0) {
+            window.draw(videoSprite);
+        }
+
+        // Draw UI components
+        playButton.draw(window);
+        pauseButton.draw(window);
+        prevButton.draw(window);
+        nextButton.draw(window);
+        openButton.draw(window);
+        progressBar.draw(window);
+        volumeBar.draw(window);
+
+        // Draw file browser (if visible)
+        fileBrowser.draw(window);
+
+        // Display window
+        window.display();
     }
 
-    // Update player
-    player.update();
+    // Clean up
+    player.close();
 
-    // Get current video frame
-    if (player.getCurrentFrame(videoTexture)) {
-        videoSprite.setTexture(videoTexture, true);
-
-        // Center video in the video area
-        sf::Vector2u textureSize = videoTexture.getSize();
-        sf::Vector2f videoAreaSize = videoBackground.getSize();
-
-        float scaleX = videoAreaSize.x / textureSize.x;
-        float scaleY = videoAreaSize.y / textureSize.y;
-        float scale = std::min(scaleX, scaleY);
-
-        videoSprite.setScale(scale, scale);
-
-        float videoWidth = textureSize.x * scale;
-        float videoHeight = textureSize.y * scale;
-        float videoX = videoBackground.getPosition().x + (videoAreaSize.x - videoWidth) / 2;
-        float videoY = videoBackground.getPosition().y + (videoAreaSize.y - videoHeight) / 2;
-
-        videoSprite.setPosition(videoX, videoY);
-    }
-
-    // Update progress bar
-    progressBar.update(player.getCurrentPosition(), player.getDuration());
-
-    // Clear window
-    window.clear(BACKGROUND_COLOR);
-
-    // Draw video background and video
-    window.draw(videoBackground);
-    if (videoTexture.getSize().x > 0 && videoTexture.getSize().y > 0) {
-        window.draw(videoSprite);
-    }
-
-    // Draw UI components
-    playButton.draw(window);
-    pauseButton.draw(window);
-    prevButton.draw(window);
-    nextButton.draw(window);
-    openButton.draw(window);
-    progressBar.draw(window);
-
-    // Draw file dialog (if visible)
-    fileDialog.draw(window);
-
-    // Display window
-    window.display();
-}
-
-// Clean up
-player.close();
-
-return 0;
+    return 0;
 }
