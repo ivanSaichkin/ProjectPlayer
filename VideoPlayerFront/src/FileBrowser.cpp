@@ -123,7 +123,7 @@ void FileBrowser::loadCurrentDirectory() {
     currentFiles.clear();
     try {
         // Загружаем файлы из указанной директории
-        std::string targetPath = "/Users/andreypavlinich/ProjectPlayer-1/VideoPlayerBack/Test";
+        std::string targetPath = "../Test";
 
         if (!std::filesystem::exists(targetPath)) {
             std::cerr << "Directory does not exist: " << targetPath << std::endl;
